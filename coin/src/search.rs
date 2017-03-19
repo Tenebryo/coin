@@ -39,20 +39,29 @@ impl TTEntry {
 }
 
 pub struct SearchEngine {
-    killers     : [[Move; 8]; 30],
+    killers     : [[Move; 8]; 60],
     trns        : HashMap<Board, TTEntry>,
     side        : Turn,
 }
 
+#[inline]
 fn min(a : i32, b : i32) -> i32 {if a < b {a} else {b}}
+#[inline]
 fn max(a : i32, b : i32) -> i32 {if a > b {a} else {b}}
+#[inline]
+fn choose(t : Turn, a : i32, b : i32) -> i32 {
+    match t {
+        Turn::BLACK => max(a,b),
+        Turn::WHITE => min(a,b),
+    }
+}
 
 impl SearchEngine {
 
     /// Returns a new SearchEngine object
     pub fn new(t : Turn) -> SearchEngine {
         SearchEngine {
-            killers     : [[Move::null(); 8];30],
+            killers     : [[Move::null(); 8];60],
             trns        : HashMap::new(),
             side        : t,
         }
@@ -60,6 +69,16 @@ impl SearchEngine {
 
     /// Uses alpha-beta search with a time limit, which will force the search to
     /// stop after a certain amount of time.
+    ///
+    /// * `bb` The root position to search from
+    /// * `h` The heuristic to use for searches
+    /// * `t` The current turn
+    /// * `alpha` The lower bound of the minimax score
+    /// * `beta` The upper bound of the minimax score
+    /// * `d` The maximum depth to search to
+    /// * `ms_left` The number of milliseconds allocated to make the move
+    /// * `start` The time the search was started
+    /// * `to_flag` An out-parameter to signal when a timeout occured
     pub fn alpha_beta_with_timeout<H: Heuristic>(
         &mut self,
         bb          : Board, 
@@ -70,7 +89,8 @@ impl SearchEngine {
         d           : u8,
         ms_left     : u64,
         start       : Instant,
-        to_flag     : &mut bool
+        to_flag     : &mut bool,
+        out_move    : &mut Move
     ) -> i32 {
         //transposition table code
         /* TODO: ADD memory management
@@ -85,6 +105,7 @@ impl SearchEngine {
     
         //check if we've reached the max depth/the game has ended
         if bb.is_done() || d == 0 {
+            *out_move = Move::pass();
             return h.evaluate(bb, t);
         }
         
@@ -121,21 +142,26 @@ impl SearchEngine {
                     let mut bc = bb.copy();
                     bc.do_move(t, rmvs[omvs[i as usize].1]);
                     
-                    g = max(
-                        g, self.alpha_beta_with_timeout(bc, h, !t, a, beta, d-1, ms_left, start, to_flag)
-                    );
-                    
-                    a = max(a,g);
-                    
-                    //prune branch
-                    if a >= beta {
-                        break;
-                    }
+                    let v = self.alpha_beta_with_timeout(bc, h, !t, a, beta, d-1, ms_left, start, to_flag, &mut Move::null());
                     
                     //break out if we have used all of our time
                     if *to_flag || start.elapsed() >= Duration::from_millis(ms_left) {
                         *to_flag = true;
                         return 0;
+                    }
+                    
+                    if v > g {
+                        g = v;
+                        //cerrln!("g: {}", g);
+                        *out_move = rmvs[omvs[i as usize].1];
+                    }
+                    
+                    a = max(a,g);
+                    
+                    //prune branch
+                    if a >= beta {
+                        //move caused a beta cutoff (TODO: add to killer moves)
+                        break;
                     }
                 }
                 g
@@ -151,22 +177,27 @@ impl SearchEngine {
                     let mut bc = bb.copy();
                     bc.do_move(t, rmvs[omvs[i as usize].1]);
                     
-                    g = min(
-                        g, self.alpha_beta_with_timeout(bc, h, !t, alpha, b, d-1, ms_left, start, to_flag)
-                    );
-                    
-                    b = min(b,g);
-                    
-                    //prune branch
-                    if alpha >= b {
-                        break;
-                    }
+                    let v = self.alpha_beta_with_timeout(bc, h, !t, alpha, b, d-1, ms_left, start, to_flag, &mut Move::null());
                     
                     //break out if we have used all of our time
                     if *to_flag || start.elapsed() >= Duration::from_millis(ms_left) {
                         *to_flag = true;
                         return 0;
                     }
+                    
+                    if v < g {
+                        g = v;
+                        *out_move = rmvs[omvs[i as usize].1];
+                    }
+                    
+                    b = min(b,g);
+                    
+                    //prune branch
+                    if alpha >= b {
+                        //move caused a alpha cutoff (TODO: add to killer moves)
+                        break;
+                    }
+                    
                 }
                 g
             }
@@ -185,6 +216,15 @@ impl SearchEngine {
     }
     
     
+    ///The alpha beta algorithm implemented with iterative deepening to ensure
+    ///constant time use.
+    ///
+    /// * `bb` The root position to search from
+    /// * `h` The heuristic to use for searches
+    /// * `t` The current turn
+    /// * `alpha` The lower bound of the minimax score
+    /// * `beta` The upper bound of the minimax score
+    /// * `ms_left` The number of milliseconds allocated to make the move
     pub fn alpha_beta_id<H: Heuristic>(
         &mut self,
         bb      : Board, 
@@ -222,7 +262,7 @@ impl SearchEngine {
                         let mut to = false;
                         
                         let v = self.alpha_beta_with_timeout(
-                            bc, h, !t, a, b, d, ms_left, start, &mut to
+                            bc, h, !t, a, b, d, ms_left, start, &mut to, &mut Move::null()
                         );
                         
                         if to || start.elapsed() >= Duration::from_millis(ms_left-500) {
@@ -257,7 +297,7 @@ impl SearchEngine {
                         
                         let mut to = false;
                         let v = self.alpha_beta_with_timeout(
-                            bc, h, !t, a, b, d, ms_left, start, &mut to
+                            bc, h, !t, a, b, d, ms_left, start, &mut to, &mut Move::null()
                         );
                         
                         if to || start.elapsed() >= Duration::from_millis(ms_left-500) {
@@ -292,6 +332,15 @@ impl SearchEngine {
     }
     
     ///Implements the MTD(f) algorithm
+    ///
+    /// * `bb` The root position to search from
+    /// * `h` The heuristic to use for searches
+    /// * `t` The current turn
+    /// * `g` A guess of the true minimax score.
+    /// * `d` The maximum depth to search to
+    /// * `ms_left` The number of milliseconds allocated to make the move
+    /// * `start` The time the search was started
+    /// * `to_flag` An out-parameter to signal when a timeout occured
     pub fn mtdf_with_timeout<H : Heuristic>(
         &mut self, 
         bb      : Board, 
@@ -304,7 +353,7 @@ impl SearchEngine {
         to_flag : &mut bool
     ) -> (Move, i32) {
     
-        let mut best = 0;
+        let mut best_move = Move::pass();
         let mut low = i32::MIN;
         let mut high = i32::MAX;
         let mut mvs : MoveList = [Move::null(); MAX_MOVES];
@@ -313,79 +362,50 @@ impl SearchEngine {
         
         while low < high {
             
-            let mut old = g;
+            ////////////////////////////////////////////////////////////////////
             //do an alpha-beta search here
-            let mut alpha = g;
+            ////////////////////////////////////////////////////////////////////
             let mut beta = g;
             
             if g == low {
                 beta += 1;
-                old += 1;
-            } else {
-                alpha -= 1;
             }
             
-            let mut flag = false;
-            let mut mx = match t {
-                Turn::BLACK => i32::MIN,
-                Turn::WHITE => i32::MAX,
-            };
-            
-            for i in 0..(n as usize) {
-                let mut bc = bb.copy();
-                bc.do_move(t, mvs[i]);
+            g = self.alpha_beta_with_timeout(
+                bb, h, t, beta-1, beta, d, ms_left, start, to_flag, &mut best_move
+            );
                 
-                let v = self.alpha_beta_with_timeout(
-                    bc, h, !t, alpha, beta, d, ms_left, start, to_flag
-                );
-                
-                if start.elapsed() >= Duration::from_millis(ms_left) {
-                    //return with timeout flag set if time runs out, as MTD(f)
-                    //Results are not meaningful if not complete
-                    *to_flag = true;
-                    return (Move::null(),0);
-                }
-                
-                //update bounds and best moves
-                match t {
-                    Turn::BLACK => {
-                        if v > mx {
-                            mx = v;
-                            best = i;
-                            flag = true;
-                        }
-                        
-                        alpha = max(alpha, mx);
-                    },
-                    Turn::WHITE => {
-                        if v < mx {
-                            mx = v;
-                            best = i;
-                            flag = true;
-                        }
-                        
-                        beta = min(beta, mx);
-                    }
-                }
+            if *to_flag {
+                return (Move::null(), 0); 
             }
+            
+            ////////////////////////////////////////////////////////////////////
             //end alpha-beta search, get result. The result must not be a timeout
-            g = mx;
+            ////////////////////////////////////////////////////////////////////
             
             //update MTD(f) bounds
-            if g < old {
+            if g < beta {
                 high = g;
             } else {
                 low = g;
             }
-            
         
         }
         
-        (mvs[best], g)
+        (best_move, g)
     }
     
     
     ///Iterative deepening implementation of MTD(f).
+    /// * `bb` The root position to search from
+    /// * `h` The heuristic to use for searches
+    /// * `t` The current turn
+    /// * `alpha` The lower bound of the minimax score
+    /// * `beta` The upper bound of the minimax score
+    /// * `d` The maximum depth to search to
+    /// * `ms_left` The number of milliseconds allocated to make the move
+    /// * `start` The time the search was started
+    /// * `to_flag` An out-parameter to signal when a timeout occured
     pub fn mtdf_id<H : Heuristic>(
         &mut self,
         bb      : Board,
@@ -409,7 +429,7 @@ impl SearchEngine {
         let mut d = 5;
         while d <= md && start.elapsed() < Duration::from_millis(ms_left) {
             
-            self.trns.clear();
+            //self.trns.clear();
             
             let mut to = false;
             let (m, v) = self.mtdf_with_timeout(bb.copy(), h, t, f, d, ms_left, start, &mut to);
@@ -423,7 +443,8 @@ impl SearchEngine {
             
             cerrln!("[COIN]: Depth {}. Best move found: {} Estimated score: {}", d, mv, f);
             
-            //This allows us to search deeper as well as compare scores better
+            //This allows us to search deeper as well as compare scores between
+            //iterations more accurately
             d += 2;
         }
         
@@ -435,7 +456,7 @@ impl SearchEngine {
         
         return mv;
     }
-
+    
 }
 
 

@@ -5,6 +5,7 @@ use bitboard::MoveList;
 use bitboard::MoveOrder;
 
 use bitboard::bit_ops::popcount_64;
+use bitboard::bit_ops::propagate;
 
 pub trait Heuristic : Sized {
     /// Evaluates the value of the given board on the turn of a given player.
@@ -35,24 +36,102 @@ impl Heuristic for HBasic {
 
 //Slightly more advanced heuristic weights different patterns
 pub struct HPattern {
+    pub piece_diff  : i32,
+}
+
+impl HPattern {
+    pub fn new() -> HPattern {
+        HPattern {
+            piece_diff  : 1,
+        }
+    }
 }
 
 impl Heuristic for HPattern {
-    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
+
+    fn evaluate(&mut self, bb : Board, t : Turn) -> i32 {
         const crn : u64 = 0x81_00_00_00_00_00_00_81u64;
-        const cac : u64 = 0xC3_C3_00_00_00_00_C3_C3u64;
+        const cac : u64 = 0x42_C3_00_00_00_00_C3_42u64;
+        const edg : u64 = 0x3C_00_81_81_81_81_00_3Cu64;
+        
+        const a1 : u64 = 0b10000001_00000000_00000000_00000000_00000000_00000000_00000000_10000001u64;
+        const b1 : u64 = 0b01000010_10000001_00000000_00000000_00000000_00000000_10000001_01000010u64;
+        const c1 : u64 = 0b00100100_00000000_10000001_00000000_00000000_10000001_00000000_00100100u64;
+        const d1 : u64 = 0b00011000_00000000_00000000_10000001_10000001_00000000_00000000_00011000u64;
+        const b2 : u64 = 0b00000000_01000010_00000000_00000000_00000000_00000000_01000010_00000000u64;
+        const c2 : u64 = 0b00000000_00100100_01000010_00000000_00000000_01000010_00100100_00000000u64;
+        const d2 : u64 = 0b00000000_00011000_00000000_01000010_01000010_00000000_00011000_00000000u64;
+        const c3 : u64 = 0b00000000_00000000_00100100_00000000_00000000_00100100_00000000_00000000u64;
+        const d3 : u64 = 0b00000000_00000000_00011000_00100100_00100100_00011000_00000000_00000000u64;
+        const d4 : u64 = 0b00000000_00000000_00000000_00011000_00011000_00000000_00000000_00000000u64;
+        
+        const a1_w : i32 = 64;
+        const b1_w : i32 = -32;
+        const c1_w : i32 = 16;
+        const d1_w : i32 = 8;
+        const b2_w : i32 = -32;
+        const c2_w : i32 = 4;
+        const d2_w : i32 = -4;
+        const c3_w : i32 = 8;
+        const d3_w : i32 = 2;
+        const d4_w : i32 = 1;
+        
+        let b = bb.pieces(Turn::BLACK);
+        let w = bb.pieces(Turn::BLACK);
+        
+        //get the corners occupied by each player
+        let bcrn = b & crn;
+        let wcrn = w & crn;
+        
+        //get the corner access 
+        let occl_crn = !propagate(bcrn | wcrn);
+        let bcac = b & cac & occl_crn;
+        let wcac = w & cac & occl_crn;
+        let bedg = b & edg;
+        let wedg = w & edg;
         
         let mut score = 0;
         
-        score += b.count_pieces(Turn::BLACK) as i32 - b.count_pieces(Turn::WHITE) as i32;
+        //the numn
+        //score += (b.count_pieces(Turn::BLACK) as i32 - b.count_pieces(Turn::WHITE) as i32)*1;
         
-        if b.is_done() {
+        score += ((popcount_64(b) as i32) - (popcount_64(w) as i32));
+        
+        if bb.is_done() {
             //prevent wipeouts
-            return score * 1000;
+            return score * 1024;
         }
         
-        score += (popcount_64(b.stability(Turn::BLACK)) as i32 - popcount_64(b.stability(Turn::WHITE)) as i32);
-        score += (popcount_64(b.mobility(Turn::BLACK)) as i32 - popcount_64(b.mobility(Turn::WHITE)) as i32);
+        score *= self.piece_diff;
+
+        score += a1_w * ((popcount_64(b & a1) as i32) - (popcount_64(w & a1) as i32));
+        score += b1_w * ((popcount_64(b & b1) as i32) - (popcount_64(w & b1) as i32));
+        score += c1_w * ((popcount_64(b & c1) as i32) - (popcount_64(w & c1) as i32));
+        score += d1_w * ((popcount_64(b & d1) as i32) - (popcount_64(w & d1) as i32));
+        score += b2_w * ((popcount_64(b & b2) as i32) - (popcount_64(w & b2) as i32));
+        score += c2_w * ((popcount_64(b & c2) as i32) - (popcount_64(w & c2) as i32));
+        score += d2_w * ((popcount_64(b & d2) as i32) - (popcount_64(w & d2) as i32));
+        score += c3_w * ((popcount_64(b & c3) as i32) - (popcount_64(w & c3) as i32));
+        score += d3_w * ((popcount_64(b & d3) as i32) - (popcount_64(w & d3) as i32));
+        score += d4_w * ((popcount_64(b & d4) as i32) - (popcount_64(w & d4) as i32));
+    
+        /*        
+        //count corners and uncapture corner access
+        score += (popcount_64(bcrn) as i32 - popcount_64(wcrn) as i32) * 50;
+        score += (popcount_64(bcac) as i32 - popcount_64(wcac) as i32) * -20;
+        score += (popcount_64(bedg) as i32 - popcount_64(wedg) as i32) * 18;
+        
+        score += (
+            popcount_64(b.stability(Turn::BLACK)) as i32 - 
+            popcount_64(b.stability(Turn::WHITE)) as i32
+        ) * 40;
+        // */
+        //count mobility
+        score += (
+            popcount_64(bb.mobility(Turn::BLACK)) as i32 - 
+            popcount_64(bb.mobility(Turn::WHITE)) as i32
+        ) * 3;
+        
         
         score
     }
@@ -61,3 +140,36 @@ impl Heuristic for HPattern {
     
     }
 }
+
+pub struct HWLD {
+
+}
+
+impl Heuristic for HWLD {
+
+    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
+        let df = b.count_pieces(Turn::BLACK) as i8 - b.count_pieces(Turn::WHITE) as i8;
+        if df > 0 {
+            1
+        } else if df == 0 {
+            0
+        } else {
+            -1
+        }
+    }
+    
+    
+    
+    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+    
+    }
+}
+
+
+
+
+
+
+
+
+

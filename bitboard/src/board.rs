@@ -100,7 +100,7 @@ impl fmt::Display for Move {
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Copy, Clone)]
 pub struct Board {
     black   : u64,
     white   : u64,
@@ -199,6 +199,15 @@ impl Board {
     }
     
     
+    /// Returns the bit mask of the given player's pieces
+    pub fn pieces(&self, t : Turn) -> u64 {
+        match t {
+            Turn::BLACK => self.black,
+            Turn::WHITE => self.white,
+        }
+    }
+    
+    
     /// Returns the mobility bit mask of the given player
     pub fn mobility(&self, t : Turn) -> u64 {
         match t {
@@ -266,6 +275,26 @@ impl Board {
             Turn::BLACK => self.bmove,
             Turn::WHITE => self.wmove,
         };
+        
+        let n = popcount_64(mvs);
+        
+        for i in 0..n {
+            out_moves[i as usize] = Move::from_off(bitscan_64(mvs));
+            mvs ^= out_moves[i as usize].mask();
+        }
+        
+        n as u8
+    }
+    
+    /// Writes moves representing the current empty squares on the board to
+    /// the out parameter `out_moves`. Note that this means the provided array
+    /// must be large enough. Returns the number of empty squares found.
+    pub fn get_empty(&self, out_moves : &mut [Move]) -> u8 {
+        
+        let mut mvs = !(self.black | self.white);
+        if mvs == 0 {
+            return 0;
+        }
         
         let n = popcount_64(mvs);
         
