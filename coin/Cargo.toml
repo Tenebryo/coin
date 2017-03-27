@@ -5,4 +5,4 @@ authors = ["Sam Blazes <sblazes@caltech.edu>"]
 
 [dependencies]
 bitboard = {path = "../bitboard"}
-tensorflow = "0.3"
+#tensorflow = "0.3"

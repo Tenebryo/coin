@@ -1,6 +1,6 @@
 use search::SearchEngine;
 use heuristic::Heuristic;
-use ml_heuristic::MLHeuristic;
+use heuristic::HBasic;
 use heuristic::HWLD;
 use bitboard::Board;
 use bitboard::Move;
@@ -12,7 +12,7 @@ use std::time::Instant;
 pub struct Player {
     t       : Turn,
     se      : SearchEngine,
-    h_mid   : MLHeuristic,
+    h_mid   : HBasic,
     h_end   : HWLD,
 }
 
@@ -21,10 +21,11 @@ impl Player {
         Player {
             t       : s,
             se      : SearchEngine::new(s),
-            h_mid   : MLHeuristic::new(
-                "../data/value_net_v1/value_net.index".to_string(),
-                "../data/policy_net_v1/policy_net.index".to_string()
-            ),
+            h_mid   : HBasic{},
+//            h_mid   : MLHeuristic::new(
+//                "../data/value_net_v1/value_net.index".to_string(),
+//                "../data/policy_net_v1/policy_net.index".to_string()
+//            ),
             h_end   : HWLD{},
         }
     }

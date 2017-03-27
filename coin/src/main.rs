@@ -1,5 +1,5 @@
 extern crate bitboard;
-extern crate tensorflow;
+//extern crate tensorflow;
 
 #[macro_use]
 pub mod common;
@@ -7,7 +7,8 @@ pub mod common;
 pub mod heuristic;
 pub mod search;
 pub mod player;
-pub mod ml_heuristic;
+pub mod transposition;
+//pub mod ml_heuristic;
 
 use std::env;
 use std::io;

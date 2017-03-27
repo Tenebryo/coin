@@ -11,6 +11,9 @@ use bitboard::Turn;
 use bitboard::MoveList;
 use bitboard::MoveOrder;
 use bitboard::MAX_MOVES;
+
+use transposition::TranspositionTable;
+
 use std::i32;
 
 use heuristic;
@@ -23,24 +26,9 @@ pub trait Search {
     fn search(&mut self, bb : Board, max_ms : u32, t : Turn) -> Move;
 }
 
-
-struct TTEntry {
-    lower   : i32,
-    upper   : i32,
-}
-
-impl TTEntry {
-    fn new(lower : i32, upper : i32) -> TTEntry {
-        TTEntry {
-            lower   : lower,
-            upper   : upper,
-        }
-    }
-}
-
 pub struct SearchEngine {
     killers     : [[Move; 8]; 60],
-    trns        : HashMap<Board, TTEntry>,
+    trns        : TranspositionTable,
     side        : Turn,
 }
 
@@ -62,7 +50,7 @@ impl SearchEngine {
     pub fn new(t : Turn) -> SearchEngine {
         SearchEngine {
             killers     : [[Move::null(); 8];60],
-            trns        : HashMap::new(),
+            trns        : TranspositionTable::new(1_000_000),
             side        : t,
         }
     }
@@ -93,13 +81,25 @@ impl SearchEngine {
         out_move    : &mut Move
     ) -> i32 {
         //transposition table code
-        /* TODO: ADD memory management
+        // * TODO: ADD memory management
         {
-            let mut tt = self.trns.entry(bb.copy()).or_insert(TTEntry::new(i32::MIN, i32::MAX));
-            if tt.lower >= beta { return tt.lower; }
-            if tt.upper <= alpha { return tt.upper; }
-            alpha = max(alpha, tt.lower);
-            beta = min(beta, tt.upper);
+            let bounds = self.trns.fetch(bb);
+            
+            match bounds.0 {
+                Some(l) => {
+                    if l >= beta  { return l; }
+                    alpha = max(alpha, l);
+                },
+                None => {}
+            }
+
+            match bounds.1 {
+                Some(h) => {
+                    if h <= alpha { return h; }
+                    beta = min(beta, h);
+                },
+                None => {}
+            }
         }
         // */
     
@@ -203,14 +203,17 @@ impl SearchEngine {
             }
         };
         
-        /*TODO: add memory management
+        // *TODO: add memory management
         
-        let mut tt = self.trns.entry(bb.copy()).or_insert(TTEntry::new(i32::MIN, i32::MAX));
+        let mut low = None;
+        let mut high = None;
         
         //update Transposition table
-        if r <= alpha {tt.upper = r;}
-        if r > alpha && r < beta {tt.upper = r; tt.lower = r;}
-        if r >= beta {tt.lower = r;}
+        if r <= alpha {high = Some(r);}
+        if r > alpha && r < beta {high = Some(r); low = Some(r);}
+        if r >= beta {low = Some(r);}
+        
+        self.trns.update(bb, low, high);
         // */
         r
     }
@@ -429,7 +432,7 @@ impl SearchEngine {
         let mut d = 5;
         while d <= md && start.elapsed() < Duration::from_millis(ms_left) {
             
-            //self.trns.clear();
+            self.trns.clear();
             
             let mut to = false;
             let (m, v) = self.mtdf_with_timeout(bb.copy(), h, t, f, d, ms_left, start, &mut to);

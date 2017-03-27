@@ -329,29 +329,29 @@ impl Board {
             Turn::WHITE => self.black
         };
 
-        tmp = sout_occl(gen, pro) & pro;
-        moves |= (tmp >> 8) & empty;
+        tmp = sout_one(sout_occl(gen, pro) & pro);
+        moves |= tmp & empty;
 
-        tmp = nort_occl(gen, pro) & pro;
-        moves |= (tmp << 8) & empty;
+        tmp = nort_one(nort_occl(gen, pro) & pro);
+        moves |= tmp & empty;
 
-        tmp = east_occl(gen, pro) & pro;
-        moves |= (tmp << 1) & not_a_file & empty;
+        tmp = east_one(east_occl(gen, pro) & pro);
+        moves |= tmp & empty;
 
-        tmp = west_occl(gen, pro) & pro;
-        moves |= (tmp >> 1) & not_h_file & empty;
+        tmp = west_one(west_occl(gen, pro) & pro);
+        moves |= tmp & empty;
 
-        tmp = soea_occl(gen, pro) & pro;
-        moves |= (tmp >> 7) & not_a_file & empty;
+        tmp = soea_one(soea_occl(gen, pro) & pro);
+        moves |= tmp & empty;
 
-        tmp = sowe_occl(gen, pro) & pro;
-        moves |= (tmp >> 9) & not_h_file & empty;
+        tmp = sowe_one(sowe_occl(gen, pro) & pro);
+        moves |= tmp & empty;
 
-        tmp = noea_occl(gen, pro) & pro;
-        moves |= (tmp << 9) & not_a_file & empty;
+        tmp = noea_one(noea_occl(gen, pro) & pro);
+        moves |= tmp & empty;
 
-        tmp = nowe_occl(gen, pro) & pro;
-        moves |= (tmp << 7) & not_h_file & empty;
+        tmp = nowe_one(nowe_occl(gen, pro) & pro);
+        moves |= tmp & empty;
 
         match t {
             Turn::BLACK => {self.bmove = moves;},
@@ -363,7 +363,7 @@ impl Board {
 impl fmt::Display for Board {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut err = write!(f, "  A B C D E F G H\n");
+        let mut err = write!(f, "  A B C D E F G H | A B C D E F G H | A B C D E F G H\n");
         
         for y in 0..8 {
             let mut t = err.and(write!(f, "{}", y+1));
@@ -375,6 +375,34 @@ impl fmt::Display for Board {
                         write!(f, " @")
                     } else if self.white & m != 0 {
                         write!(f, " O")
+                    } else {
+                        write!(f, "  ")
+                    }
+                );
+                err = e;
+            }
+            
+            t = err.and(write!(f, " |"));
+            
+            for x in 0..8 {
+                let m = Move::new(x,y).mask();
+                let e = err.and(
+                    if self.bmove & m != 0 {
+                        write!(f, " @")
+                    } else {
+                        write!(f, "  ")
+                    }
+                );
+                err = e;
+            }
+            
+            t = err.and(write!(f, " |"));
+            
+            for x in 0..8 {
+                let m = Move::new(x,y).mask();
+                let e = err.and(
+                    if self.wmove & m != 0 {
+                        write!(f, " @")
                     } else {
                         write!(f, "  ")
                     }
