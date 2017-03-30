@@ -75,7 +75,7 @@ fn main() {
                 panic!(e)
             }
         }
-        cerrln!("{}", b);
+        cerrln!("\n{}", b);
         
         //make my move
         let m = p.do_move(b.copy(), ms_left);
@@ -90,7 +90,7 @@ fn main() {
             println!("{} {}", m.x(), m.y());
         }
         
-        cerrln!("{}", b);
+        cerrln!("\n{}", b);
     }
     
     cerrln!("RESULT: {}/{}", b.count_pieces(Turn::BLACK), b.count_pieces(Turn::WHITE));

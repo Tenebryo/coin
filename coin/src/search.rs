@@ -30,6 +30,7 @@ pub struct SearchEngine {
     killers     : [[Move; 8]; 60],
     trns        : TranspositionTable,
     side        : Turn,
+    history     : [[[i32;8];8];2],
 }
 
 #[inline]
@@ -48,13 +49,64 @@ impl SearchEngine {
 
     /// Returns a new SearchEngine object
     pub fn new(t : Turn) -> SearchEngine {
+    
+        const a1 : i32 = 256;
+        const b1 : i32 = -32;
+        const c1 : i32 = 16;
+        const d1 : i32 = 8;
+        const b2 : i32 = -32;
+        const c2 : i32 = 4;
+        const d2 : i32 = -4;
+        const c3 : i32 = 8;
+        const d3 : i32 = 2;
+        const d4 : i32 = 1;
+
         SearchEngine {
             killers     : [[Move::null(); 8];60],
             trns        : TranspositionTable::new(1_000_000),
             side        : t,
+            history     : [[
+                [a1, b1, c1, d1, d1, c1, b1, a1],
+                [b1, b2, c2, d2, d2, c2, b2, b1],
+                [c1, c2, c3, d3, d3, c3, c2, c1],
+                [d1, d2, d3, d4, d4, d3, d2, d1],
+                [d1, d2, d3, d4, d4, d3, d2, d1],
+                [c1, c2, c3, d3, d3, c3, c2, c1],
+                [b1, b2, c2, d2, d2, c2, b2, b1],
+                [a1, b1, c1, d1, d1, c1, b1, a1]
+            ];2],
         }
     }
-
+    
+    
+    //re-initializes the history heuristic
+    pub fn reinit_history(&mut self) {
+    
+        const a1 : i32 = 256;
+        const b1 : i32 = -32;
+        const c1 : i32 = 16;
+        const d1 : i32 = 8;
+        const b2 : i32 = -32;
+        const c2 : i32 = 4;
+        const d2 : i32 = -4;
+        const c3 : i32 = 8;
+        const d3 : i32 = 2;
+        const d4 : i32 = 1;
+        
+        self.history = [[
+            [a1, b1, c1, d1, d1, c1, b1, a1],
+            [b1, b2, c2, d2, d2, c2, b2, b1],
+            [c1, c2, c3, d3, d3, c3, c2, c1],
+            [d1, d2, d3, d4, d4, d3, d2, d1],
+            [d1, d2, d3, d4, d4, d3, d2, d1],
+            [c1, c2, c3, d3, d3, c3, c2, c1],
+            [b1, b2, c2, d2, d2, c2, b2, b1],
+            [a1, b1, c1, d1, d1, c1, b1, a1]
+        ];2];
+    }
+    
+    
+    ////////////////////////////////////////////////////////////////////////////
     /// Uses alpha-beta search with a time limit, which will force the search to
     /// stop after a certain amount of time.
     ///
@@ -67,6 +119,7 @@ impl SearchEngine {
     /// * `ms_left` The number of milliseconds allocated to make the move
     /// * `start` The time the search was started
     /// * `to_flag` An out-parameter to signal when a timeout occured
+    ////////////////////////////////////////////////////////////////////////////
     pub fn alpha_beta_with_timeout<H: Heuristic>(
         &mut self,
         bb          : Board, 
@@ -109,15 +162,26 @@ impl SearchEngine {
             return h.evaluate(bb, t);
         }
         
+        
+        //fetch the available moves from the board
         let mut rmvs : MoveList = [Move::null(); MAX_MOVES];
         let mut omvs : MoveOrder = [(0i32, 0); MAX_MOVES];
         
         let n = bb.get_moves(t, &mut rmvs);
         
-        for i in 0..n {
-            omvs[i as usize] = (0, i as usize);
+        //initialize history heuristic move ordering
+        const history_cell_weight : i32 = 2;
+        const history_cutoff_weight : i32 = 1;
+        let history_index = match t {Turn::BLACK => 0, Turn::WHITE => 1};
+        for i in 0..(n as usize) {
+            omvs[i] = (
+                history_cell_weight * self.history[history_index][rmvs[i].x() as usize][rmvs[i].y() as usize], 
+                i
+            );
         }
         
+        //check for killer moves, and modify move ordering as appropriate 
+        //(possibly deprecated)
         for i in 0..8 {
             if self.killers[d as usize][i].is_null() {
                 break;
@@ -131,6 +195,7 @@ impl SearchEngine {
         }
         
         let r = match t {
+            //Simulate BLACK's turn
             Turn::BLACK => {
                 //pre-order moves to allow more agressive pruning
                 omvs[0..(n as usize)].sort_by(|a,b| b.partial_cmp(a).unwrap_or(cmp::Ordering::Equal));
@@ -150,22 +215,27 @@ impl SearchEngine {
                         return 0;
                     }
                     
+                    //update best move
                     if v > g {
                         g = v;
                         //cerrln!("g: {}", g);
                         *out_move = rmvs[omvs[i as usize].1];
                     }
                     
+                    //update alpha value
                     a = max(a,g);
                     
                     //prune branch
                     if a >= beta {
-                        //move caused a beta cutoff (TODO: add to killer moves)
+                        //move caused a beta cutoff (Thus inc history moves)
+                        let m = rmvs[omvs[i as usize].1];
+                        self.history[0][m.x() as usize][m.y() as usize] += history_cutoff_weight;
                         break;
                     }
                 }
                 g
             },
+            //Simulate WHITE's turn
             Turn::WHITE => {
                 //pre-order moves to allow more agressive pruning
                 omvs[0..(n as usize)].sort_by(|a,b| a.partial_cmp(b).unwrap_or(cmp::Ordering::Equal));
@@ -185,16 +255,20 @@ impl SearchEngine {
                         return 0;
                     }
                     
+                    //update best move
                     if v < g {
                         g = v;
                         *out_move = rmvs[omvs[i as usize].1];
                     }
                     
+                    //update beta value
                     b = min(b,g);
                     
                     //prune branch
                     if alpha >= b {
-                        //move caused a alpha cutoff (TODO: add to killer moves)
+                        //move caused a alpha cutoff (Thus dec history moves)
+                        let m = rmvs[omvs[i as usize].1];
+                        self.history[1][m.x() as usize][m.y() as usize] -= history_cutoff_weight;
                         break;
                     }
                     
@@ -203,18 +277,17 @@ impl SearchEngine {
             }
         };
         
-        // *TODO: add memory management
+        //update transposition table:
         
         let mut low = None;
         let mut high = None;
         
-        //update Transposition table
         if r <= alpha {high = Some(r);}
         if r > alpha && r < beta {high = Some(r); low = Some(r);}
         if r >= beta {low = Some(r);}
         
         self.trns.update(bb, low, high);
-        // */
+        
         r
     }
     
@@ -453,8 +526,9 @@ impl SearchEngine {
         
         let d = start.elapsed();
         cerrln!(
-            "[COIN]: Done searching ({} s).", 
-            (d.as_secs() as f32) + (d.subsec_nanos() as f32)/1_000_000_000f32
+            "[COIN]: Done searching ({} s). Best move is {}", 
+            (d.as_secs() as f32) + (d.subsec_nanos() as f32)/1_000_000_000f32,
+            mv
         );
         
         return mv;

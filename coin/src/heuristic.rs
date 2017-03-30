@@ -50,9 +50,27 @@ impl HPattern {
 impl Heuristic for HPattern {
 
     fn evaluate(&mut self, bb : Board, t : Turn) -> i32 {
-        const crn : u64 = 0x81_00_00_00_00_00_00_81u64;
-        const cac : u64 = 0x42_C3_00_00_00_00_C3_42u64;
-        const edg : u64 = 0x3C_00_81_81_81_81_00_3Cu64;
+    
+        /*
+           A   B   C   D   E   F   G   H
+         +---+---+---+---+---+---+---+---+
+        1| a1| b1| c1| d1| d1| c1| b1| a1|
+         +---+---+---+---+---+---+---+---+
+        2| b1| b2| c2| d2| d2| c2| b2| b1|
+         +---+---+---+---+---+---+---+---+
+        3| c1| c2| c3| d3| d3| c3| c2| c1|
+         +---+---+---+---+---+---+---+---+
+        4| d1| d2| d3| d4| d4| d3| d2| d1|
+         +---+---+---+---+---+---+---+---+
+        5| d1| d2| d3| d4| d4| d3| d2| d1|
+         +---+---+---+---+---+---+---+---+
+        6| c1| c2| c3| d3| d3| c3| c2| c1|
+         +---+---+---+---+---+---+---+---+
+        7| b1| b2| c2| d2| d2| c2| b2| b1|
+         +---+---+---+---+---+---+---+---+
+        8| a1| b1| c1| d1| d1| c1| b1| a1|
+         +---+---+---+---+---+---+---+---+
+        */
         
         const a1 : u64 = 0b10000001_00000000_00000000_00000000_00000000_00000000_00000000_10000001u64;
         const b1 : u64 = 0b01000010_10000001_00000000_00000000_00000000_00000000_10000001_01000010u64;
@@ -65,7 +83,7 @@ impl Heuristic for HPattern {
         const d3 : u64 = 0b00000000_00000000_00011000_00100100_00100100_00011000_00000000_00000000u64;
         const d4 : u64 = 0b00000000_00000000_00000000_00011000_00011000_00000000_00000000_00000000u64;
         
-        const a1_w : i32 = 64;
+        const a1_w : i32 = 256;
         const b1_w : i32 = -32;
         const c1_w : i32 = 16;
         const d1_w : i32 = 8;
@@ -76,19 +94,17 @@ impl Heuristic for HPattern {
         const d3_w : i32 = 2;
         const d4_w : i32 = 1;
         
+        //compensate for corners that are already used.
+        const crn_occ_cmp : i32 = 48;
+        
         let b = bb.pieces(Turn::BLACK);
-        let w = bb.pieces(Turn::BLACK);
+        let w = bb.pieces(Turn::WHITE);
         
         //get the corners occupied by each player
-        let bcrn = b & crn;
-        let wcrn = w & crn;
+        let crn_occ = (b | w) & a1;
         
         //get the corner access 
-        let occl_crn = !propagate(bcrn | wcrn);
-        let bcac = b & cac & occl_crn;
-        let wcac = w & cac & occl_crn;
-        let bedg = b & edg;
-        let wedg = w & edg;
+        let crn_occ_msk = propagate(crn_occ) & (!a1);
         
         let mut score = 0;
         
@@ -99,7 +115,7 @@ impl Heuristic for HPattern {
         
         if bb.is_done() {
             //prevent wipeouts
-            return score * 1024;
+            return score * 4096;
         }
         
         score *= self.piece_diff;
@@ -114,6 +130,10 @@ impl Heuristic for HPattern {
         score += c3_w * ((popcount_64(b & c3) as i32) - (popcount_64(w & c3) as i32));
         score += d3_w * ((popcount_64(b & d3) as i32) - (popcount_64(w & d3) as i32));
         score += d4_w * ((popcount_64(b & d4) as i32) - (popcount_64(w & d4) as i32));
+        
+        //this ensures that if the corners are already taken, the corner access
+        //squares are no longer counted as negative.
+        score += crn_occ_cmp * ((popcount_64(b & crn_occ_msk) as i32) - (popcount_64(w & crn_occ_msk) as i32));
     
         /*        
         //count corners and uncapture corner access
@@ -148,7 +168,7 @@ pub struct HWLD {
 impl Heuristic for HWLD {
 
     fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
-        let df = b.count_pieces(Turn::BLACK) as i8 - b.count_pieces(Turn::WHITE) as i8;
+        let df = (b.count_pieces(Turn::BLACK) as i8) - (b.count_pieces(Turn::WHITE) as i8);
         if df > 0 {
             1
         } else if df == 0 {
