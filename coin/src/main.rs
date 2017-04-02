@@ -8,6 +8,7 @@ pub mod heuristic;
 pub mod search;
 pub mod player;
 pub mod transposition;
+pub mod opening;
 //pub mod ml_heuristic;
 
 use std::env;
@@ -50,10 +51,10 @@ fn main() {
         //wait for opponent move first
         let mut x_inp = String::new();
         match io::stdin().read_line(&mut x_inp) {
-            Ok(n) => {
+            Ok(_) => {
                 let mut n = x_inp.find(char::is_whitespace).unwrap();
                 let mut y_inp = x_inp.split_off(n).split_off(1);
-                n - y_inp.find(char::is_whitespace).unwrap();
+                n = y_inp.find(char::is_whitespace).unwrap();
                 let mut ms_inp = y_inp.split_off(n).split_off(1);
                 ms_inp = ms_inp.trim().to_string();
                 

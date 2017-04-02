@@ -388,7 +388,7 @@ impl fmt::Display for Board {
                 let m = Move::new(x,y).mask();
                 let e = err.and(
                     if self.bmove & m != 0 {
-                        write!(f, " @")
+                        write!(f, " *")
                     } else {
                         write!(f, "  ")
                     }
@@ -402,7 +402,7 @@ impl fmt::Display for Board {
                 let m = Move::new(x,y).mask();
                 let e = err.and(
                     if self.wmove & m != 0 {
-                        write!(f, " @")
+                        write!(f, " *")
                     } else {
                         write!(f, "  ")
                     }

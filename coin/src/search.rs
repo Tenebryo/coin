@@ -63,7 +63,7 @@ impl SearchEngine {
 
         SearchEngine {
             killers     : [[Move::null(); 8];60],
-            trns        : TranspositionTable::new(1_000_000),
+            trns        : TranspositionTable::new(2_000_000),
             side        : t,
             history     : [[
                 [a1, b1, c1, d1, d1, c1, b1, a1],
@@ -80,7 +80,7 @@ impl SearchEngine {
     
     
     //re-initializes the history heuristic
-    pub fn reinit_history(&mut self) {
+    fn reinit_history(&mut self) {
     
         const a1 : i32 = 256;
         const b1 : i32 = -32;
@@ -168,6 +168,12 @@ impl SearchEngine {
         let mut omvs : MoveOrder = [(0i32, 0); MAX_MOVES];
         
         let n = bb.get_moves(t, &mut rmvs);
+        
+        if n == 0 {
+            //there are no moves available, so we must pass
+            *out_move = Move::pass();
+            return self.alpha_beta_with_timeout(bb, h, !t, alpha, beta, d-1, ms_left, start, to_flag, &mut Move::null());
+        }
         
         //initialize history heuristic move ordering
         const history_cell_weight : i32 = 2;
@@ -432,9 +438,6 @@ impl SearchEngine {
         let mut best_move = Move::pass();
         let mut low = i32::MIN;
         let mut high = i32::MAX;
-        let mut mvs : MoveList = [Move::null(); MAX_MOVES];
-        
-        let n = bb.get_moves(t, &mut mvs);
         
         while low < high {
             
@@ -505,7 +508,11 @@ impl SearchEngine {
         let mut d = 5;
         while d <= md && start.elapsed() < Duration::from_millis(ms_left) {
             
+            //clear old transposition table
             self.trns.clear();
+            //clears history heuristic for move ordering to match the current
+            //depth of search
+            self.reinit_history();
             
             let mut to = false;
             let (m, v) = self.mtdf_with_timeout(bb.copy(), h, t, f, d, ms_left, start, &mut to);
@@ -517,7 +524,7 @@ impl SearchEngine {
             f = v;
             mv = m;
             
-            cerrln!("[COIN]: Depth {}. Best move found: {} Estimated score: {}", d, mv, f);
+            cerrln!("[COIN]: Depth {:3}. \tBest move found: {:10} \t\tEstimated score: {:5} \tTable Size: {:8}", d, mv, f, self.trns.size());
             
             //This allows us to search deeper as well as compare scores between
             //iterations more accurately

@@ -35,7 +35,9 @@ impl Player {
         let empty = (64 - b.count_pieces(Turn::BLACK) - b.count_pieces(Turn::WHITE)) as u64;
         
         
-        if empty > 20 {
+        if empty > 18 {
+            //somehow, this makes it play well...
+            //optimizing for few pieces
             self.h_mid.piece_diff = ((16-empty)>>1) as i32;
             // If we are still in the mid-game, use MTD(f)
             self.se.mtdf_id(
@@ -58,7 +60,16 @@ impl Player {
             );
             
             if to || g >= bt || g <= al || mv.is_null() {
-                cerrln!("[COIN]: TIMEOUT or bounds miss, reverting to MTD(f)");
+                if to {
+                    cerrln!("[COIN]: Solver TIMEOUT, reverting to MTD(f)");
+                } else if g >= bt || g <= al {
+                    cerrln!("[COIN]: Bounds miss, reverting to MTD(f)");
+                } else {
+                    cerrln!("[COIN]: Other error, reverting to MTD(f)");
+                }
+                //change the value of having more pieces as we get closer to the
+                //end of the game
+                //self.h_mid.piece_diff = ((24-empty)>>1) as i32;
                 //we either timed out or couldn't find a guaranteed win so we
                 //switch back to MTD(f) and try again next time.
                 self.se.mtdf_id(

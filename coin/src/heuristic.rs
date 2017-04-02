@@ -150,7 +150,7 @@ impl Heuristic for HPattern {
         score += (
             popcount_64(bb.mobility(Turn::BLACK)) as i32 - 
             popcount_64(bb.mobility(Turn::WHITE)) as i32
-        ) * 3;
+        ) * 8;
         
         
         score
