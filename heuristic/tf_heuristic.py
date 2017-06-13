@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 # NOTE: do not forget to name items that will be used by the bot to compute
 # scores
@@ -12,7 +13,7 @@ with tf.name_scope('value') as scope:
     
     #The input - 4 64-bit integers representing the black and white pieces, and
     #black and white mobility, respectively
-    v_in = tf.placeholder(tf.int64, [None,4], name='input')
+    v_in = tf.placeholder(tf.float32, [None,256], name='input')
     
     #the desired output - the expected score of the given position. 
     v_score = tf.placeholder(tf.float32, [None, 1])
@@ -25,33 +26,20 @@ with tf.name_scope('value') as scope:
     v_b1 = tf.Variable(tf.random_normal([256]))
     v_b2 = tf.Variable(tf.random_normal([1]))
     
-    #Produce bit array (represented as floats 0.0 and 1.0) from the integers
-    # flt_tmp = (vx[i] // 2**i)
-    v_flt_tmp = tf.floor_div(
-        tf.reshape(tf.tile(tf.expand_dims(v_in,2),[1,1,64]]), [-1, 256]),   #[?,4] -> [?,4,1] -> [?,4,64] -> [?,256]
-        tf.tile(tf.pow(2,tf.range(64)),[4])                                 #[64] -> [256] ->
-    )
-    
-    # flt_bit_arr = (flt_tmp - (flt_tmp // 2) * 2)
-    v_flt_bit_arr =     tf.cast(
-        v_flt_tmp - (tf.floor_div(v_flt_tmp,2) * 2), 
-        tf.float32
-    )
-    
     #construct neural net
     v_pred = tf.tanh(
-        v_b2 + tf.matmul(v_w2, tf.tanh(
-            v_b1 + tf.matmul(v_w1, tf.tanh(
-                v_b0 + tf.matmul(v_w0,v_flt_bit_arr)
-            ))
-        ))
+        v_b2 + tf.matmul(tf.tanh(
+            v_b1 + tf.matmul(tf.tanh(
+                v_b0 + tf.matmul(v_in, v_w0)
+            ), v_w1)
+        ), v_w2)
     )
     
     #the actual output node is an int, scaled by 1024 to get better resolution
-    v_out = tf.cast(tf.round(v_pred * 1024), tf.int32, name='output')
+    v_out = tf.cast(tf.round(v_pred * 1000), tf.int32, name='output')
     
     #optimizer target:
-    v_cost = tf.reduce_mean(tf.reduce_sum(tf.pow(v_pred - y, 2), reduction_indices=1))
+    v_cost = tf.reduce_mean(tf.reduce_sum(tf.pow(v_pred - v_score, 2), reduction_indices=1))
     v_opt  = tf.train.GradientDescentOptimizer(learning_rate).minimize(v_cost)
     
     
@@ -152,14 +140,24 @@ with tf.name_scope('policy') as scope:
 
     # Minimize error using cross entropy
     # TODO: Modify this maybe? model seems to produce all 1s
-    cost = tf.reduce_mean(-tf.reduce_sum(y*tf.log(pred), axis=[1,2]))
+    cost = tf.reduce_mean(tf.softmax_cross_entropy_with_logits(
+        labels = tf.reshape(y, [None, 64]), 
+        logits = tf.log(tf.reshape(pred, [None, 64])), 
+    ))
     # Gradient Descent
     optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
 
-    saver = tf.train.Saver(tf.global_variables())
+
 
 # Initializing the variables
 init = tf.global_variables_initializer()
-    
+
+saver = tf.train.Saver(tf.global_variables())
+
+
 with tf.Session() as session:
+    session.run(init)
+
+    
+
     pass

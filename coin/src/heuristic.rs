@@ -115,7 +115,8 @@ impl Heuristic for HPattern {
         
         if bb.is_done() {
             //prevent wipeouts
-            return score * 4096;
+            use std::i32;
+            return score.signum() * 1_000_000_000i32 + score;
         }
         
         score *= self.piece_diff;

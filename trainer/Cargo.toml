@@ -1,9 +1,8 @@
 [package]
-name = "coin"
+name = "trainer"
 version = "0.1.0"
 authors = ["Sam Blazes <sblazes@caltech.edu>"]
 
 [dependencies]
 bitboard = {path = "../bitboard"}
 pattern_engine = {path = "../pattern_engine"}
-#tensorflow = "0.3"
