@@ -76,7 +76,7 @@ impl Move {
     pub fn mask(&self) -> u64 {
         match self.data {
             0b1_000_000 => 0,
-            d => 1u64 << (self.data)
+            d => 1u64 << (d)
         }
     }
     
@@ -159,7 +159,7 @@ impl Board {
     /// Updates a board by playing the given move for the given player
     pub fn do_move(&mut self, t : Turn, m : Move) {
     
-        if (m.is_pass() || m.is_null()) {
+        if m.is_pass() || m.is_null() {
             return;
         }
         let mut pro = 0u64; 
@@ -357,6 +357,19 @@ impl Board {
             Turn::BLACK => {self.bmove = moves;},
             Turn::WHITE => {self.wmove = moves;}
         };
+    }
+
+    ///This function makes sure the move bitboards are current in the function
+    pub fn update_moves(&mut self) {
+        self.find_moves(Turn::BLACK);
+        self.find_moves(Turn::WHITE);
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]    
+    pub fn update_moves_fast(&mut self) {
+        use find_moves_fast::fast_find_moves;
+        self.bmove = fast_find_moves(self.black, self.white);
+        self.wmove = fast_find_moves(self.white, self.black);
     }
 }
 

@@ -1,12 +1,12 @@
-#![feature(test)]
+#![feature(asm)]
 extern crate bson;
 extern crate rand;
-extern crate test;
 extern crate bitboard;
 
 mod pattern_lut;
 mod pattern;
 mod pattern_set;
+mod twos_to_threes_lut;
 
 pub use pattern_lut::PatternLUT;
 pub use pattern::Pattern;
@@ -14,45 +14,20 @@ pub use pattern_set::PatternSet;
 
 #[cfg(test)]
 mod tests {
-    use pattern_lut::PatternLUT;
-    use test;
-    #[test]
-    fn it_works() {
-        test::black_box(PatternLUT::from_mask(0b00000000_00000000_00000000_00011000_00000000_00100010_00001110_00000000));
-    }
-}
-
-#[cfg(test)]
-mod bench {
-
-    use pattern_lut::PatternLUT;
-    use pattern::Pattern;
-    use test::Bencher;
-    use test;
-
+    extern crate time;
     use rand::Rng;
     use rand;
 
-    #[bench]
-    fn pattern_lut_gen_bench(b: &mut Bencher) {
-        b.iter(||{
-            PatternLUT::from_mask(0b00000000_00000000_00000000_00011000_00000000_00100010_00001110_00000000)
-        });
-    }
-    #[bench]
-    fn pattern_eval_bench(b: &mut Bencher) {
+    use pattern_set::PatternSet;
+    use pattern_lut::PatternLUT;
+    use pattern::Pattern;
 
-        const SCORE_SIZE : usize = 6561; //2187
+    use std::time::Instant;
 
-        let mut scores = vec![0f32; SCORE_SIZE].into_boxed_slice();
-
+    #[test]
+    fn patternlut_test() {
         let mut rng = rand::thread_rng();
-        for i in 0..SCORE_SIZE {
-            scores[i] = rng.gen::<f32>();
-        }
-
-        let mut mask : u64 = 0;
-
+        let mut mask = 0;
         for _ in 0..8 {
             loop {
                 let j = rng.gen::<u64>()%64;
@@ -62,19 +37,83 @@ mod bench {
                 }
             }
         }
+        PatternLUT::from_mask(mask);
+    }
 
-
-        let p = Pattern::seed_random(mask);
+    #[test]
+    fn pattern_bench() {
+        let mut rng = rand::thread_rng();
+        let mut mask = 0;
+        for _ in 0..8 {
+            loop {
+                let j = rng.gen::<u64>()%64;
+                if ((1<<j) & mask) == 0 {
+                    mask |= 1<<j;
+                    break;
+                }
+            }
+        }
+        println!("Mask: {:64b}", mask);
+        use bitboard::bit_ops::popcount_64;
+        println!("Count: {}", popcount_64 (mask));
 
         let testb = rng.gen::<u64>();
         let mut testw = rng.gen::<u64>();
 
         testw &= !testb;
 
-        println!("\nMask: {:64b}\nTest Bitboard: {:64b}:{:64b}", mask, testb, testw);
 
-        b.iter(||{
-            test::black_box(p.eval(testb,testw));
-        });
+        let p = Pattern::seed_random(mask);
+
+        let iters = 10000;
+
+        let now = Instant::now();
+        for _ in 0..iters {
+            p.eval(testb,testw);
+        }
+        let dur = now.elapsed();
+
+        let total_time = dur.as_secs() * 1_000_000_000u64 + dur.subsec_nanos() as u64;
+
+        println!("Pattern::eval\t\t\t\t{:?} ns/iter", total_time as f32/iters as f32);
+
+    }
+
+    #[test]
+    fn patternset_test() {
+        let mut rng = rand::thread_rng();
+
+        let masks : Vec<u64> = (0..12).map(|_| {
+            let mut mask = 0;
+            for _ in 0..8 {
+                loop {
+                    let j = rng.gen::<u64>()%64;
+                    if ((1<<j) & mask) == 0 {
+                        mask |= 1<<j;
+                        break;
+                    }
+                }
+            }
+            mask
+        }).collect::<Vec<_>>();
+
+        let p = PatternSet::from_masks(&masks);
+
+        let testb = rng.gen::<u64>();
+        let mut testw = rng.gen::<u64>();
+
+        testw &= !testb;
+
+        let iters = 10000;
+
+        let now = Instant::now();
+        for _ in 0..iters {
+            p.eval(testb,testw);
+        }
+        let dur = now.elapsed();
+
+        let total_time = dur.as_secs() * 1_000_000_000u64 + dur.subsec_nanos() as u64;
+
+        println!("PatternSet::eval\t\t\t{:?} ns/iter", total_time/iters);
     }
 }
