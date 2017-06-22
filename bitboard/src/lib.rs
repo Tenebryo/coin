@@ -37,7 +37,7 @@ mod tests {
         
         println!("{}", b);
         
-        b.do_move(Turn::BLACK, Move::new(3,2));
+        b.do_move(Move::new(3,2));
         
         println!("{}", b);
     }
@@ -57,14 +57,14 @@ mod tests {
             while !b1.is_done() {
                 let mut moves : MoveList = [Move::null(); MAX_MOVES];
 
-                let n = b1.get_moves(t, &mut moves);
+                let n = b1.get_moves(&mut moves);
 
                 if n != 0 {
                     let m = moves[rng.gen::<usize>()%(n as usize)];
 
-                    b1.do_move(t, m);
+                    b1.do_move(m);
                     b1.update_moves();
-                    b2.do_move(t, m);
+                    b2.do_move(m);
                     b2.update_moves_fast();
                 }
 
@@ -90,7 +90,7 @@ mod tests {
             while !b1.is_done() {
                 let mut moves : MoveList = [Move::null(); MAX_MOVES];
 
-                let n = b1.get_moves(t, &mut moves);
+                let n = b1.get_moves(&mut moves);
 
                 let bb1 = b1;
                 let bb2 = b2;
@@ -101,9 +101,9 @@ mod tests {
                 if n != 0 {
                     m = moves[rng.gen::<usize>()%(n as usize)];
 
-                    f1 = b1.do_move(t, m);
+                    f1 = b1.do_move(m);
                     b1.update_moves();
-                    f2 = b2.f_do_move(t, m);
+                    f2 = b2.f_do_move(m);
                     b2.update_moves_fast();
                 }
 
@@ -116,7 +116,7 @@ mod tests {
                     bit_ops::print_bitboard(f1);
                     bit_ops::print_bitboard(f2);
 
-                    println!("{:064b}\n{:064b}", bb2.pieces(t), bb2.pieces(!t));
+                    println!("{:064b}\n{:064b}", bb2.pieces().0, bb2.pieces().1);
                 }
 
                 assert!(b1 == b2);
@@ -134,7 +134,7 @@ mod tests {
 
         let t = bench(|| {
             let mut list : MoveList = [Move::null(); MAX_MOVES];
-            b.get_moves(Turn::BLACK, &mut list);
+            b.get_moves(&mut list);
         }, iters);
 
         println!("get_moves: {} ns/iter", (t as f32/iters as f32));
@@ -171,7 +171,7 @@ mod tests {
         let iters = 100000;
         let t = bench(|| {
             let mut b = Board::new();
-            b.do_move(Turn::BLACK, Move::new(3,2));
+            b.do_move(Move::new(3,2));
         }, iters);
         println!("do_move: {} ns/iter", (t as f64/iters as f64));
     }
@@ -181,7 +181,7 @@ mod tests {
         let iters = 100000;
         let t = bench(|| {
             let mut b = Board::new();
-            b.f_do_move(Turn::BLACK, Move::new(3,2));
+            b.f_do_move(Move::new(3,2));
         }, iters);
         println!("f_do_move: {} ns/iter", (t as f64/iters as f64));
     }
@@ -197,7 +197,7 @@ mod tests {
 
         use do_moves_fast::fast_do_move;
         let t = bench(|| {
-            fast_do_move(m & 7, (m >> 3) & 7, p, o);
+            fast_do_move(m, m & 7, (m >> 3) & 7, p, o);
         }, iters);
         
         println!("fast_do_move: {} ns/iter", (t as f64/iters as f64));

@@ -7,7 +7,7 @@ pub const MAX_MOVES : usize = 28;
 pub type MoveList = [Move; MAX_MOVES];
 pub type MoveOrder = [(i32, usize); MAX_MOVES];
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Hash, Eq)]
 pub enum Turn {
     BLACK,
     WHITE,
@@ -106,10 +106,16 @@ impl fmt::Display for Move {
 
 #[derive(Hash, PartialEq, Eq, Copy, Clone)]
 pub struct Board {
-    black   : u64,
-    white   : u64,
-    bmove   : u64,
-    wmove   : u64,
+    ///Player Stones
+    ps   : u64,
+    ///Opponent Stones
+    os   : u64,
+    ///Player Moves
+    pm   : u64,
+    ///Opponent Moves
+    om   : u64,
+    ///Current Turn
+    ct   : Turn,
 }
 
 impl Board {
@@ -117,10 +123,11 @@ impl Board {
     /// Returns a new othello board initialized to the staring position.
     pub fn new() -> Board {
         Board {
-            black   : 0b00000000_00000000_00000000_00001000_00010000_00000000_00000000_00000000u64,
-            white   : 0b00000000_00000000_00000000_00010000_00001000_00000000_00000000_00000000u64,
-            bmove   : 0b00000000_00000000_00010000_00100000_00000100_00001000_00000000_00000000u64,
-            wmove   : 0b00000000_00000000_00001000_00000100_00100000_00010000_00000000_00000000u64,
+            ps   : 0b00000000_00000000_00000000_00001000_00010000_00000000_00000000_00000000u64,
+            os   : 0b00000000_00000000_00000000_00010000_00001000_00000000_00000000_00000000u64,
+            pm   : 0b00000000_00000000_00010000_00100000_00000100_00001000_00000000_00000000u64,
+            om   : 0b00000000_00000000_00001000_00000100_00100000_00010000_00000000_00000000u64,
+            ct   : Turn::BLACK,
         }
     }
     
@@ -128,42 +135,38 @@ impl Board {
     /// Returns a copy of the board
     pub fn copy(&self) -> Board {
         Board {
-            black   : self.black,
-            white   : self.white,
-            bmove   : self.bmove,
-            wmove   : self.wmove,
+            ps   : self.ps,
+            os   : self.os,
+            pm   : self.pm,
+            om   : self.om,
+            ct   : self.ct,
         }
     }
     
     
     /// Checks whether or not the game is over
     pub fn is_done(&self) -> bool {
-        self.bmove == 0 && self.wmove == 0
+        self.pm == 0 && self.om == 0
     }
     
     
     /// Checks whether a player has a legal move
-    pub fn has_move(&self, t : Turn) -> bool {
-        match t {
-            Turn::BLACK => self.bmove != 0,
-            Turn::WHITE => self.wmove != 0,
-        }
+    pub fn has_move(&self) -> (bool,bool) {
+        (self.pm != 0, self.om != 0)
     }
     
     
     /// Checks whether a move is legal
-    pub fn check_move(&self, t : Turn, m : Move) -> bool {
-        match t {
-            Turn::BLACK => (self.bmove & m.mask()) != 0,
-            Turn::WHITE => (self.wmove & m.mask()) != 0,
-        }
+    pub fn check_move(&self, m : Move) -> (bool,bool) {
+        ((self.pm & m.mask()) != 0, (self.om & m.mask()) != 0)
     }
     
     
     /// Updates a board by playing the given move for the given player
-    pub fn do_move(&mut self, t : Turn, m : Move) -> u64{
+    pub fn do_move(&mut self, m : Move) -> u64{
     
         if m.is_pass() || m.is_null() {
+            self.swap();
             return 0;
         }
         let mut pro = 0u64; 
@@ -171,20 +174,10 @@ impl Board {
         let mut msk = 0u64;
         let org = m.mask();
 
-        match t {
-            Turn::BLACK => {
-                gen = self.black;
-                pro = self.white;
-                
-                self.black |= org;
-            },
-            Turn::WHITE => {
-                gen = self.white;
-                pro = self.black;
-                
-                self.white |= org;
-            }
-        }
+        gen = self.ps;
+        pro = self.os;
+
+        self.ps |= org;
 
         msk |= sout_occl(gen, pro) & nort_occl(org, pro);
         msk |= nort_occl(gen, pro) & sout_occl(org, pro);
@@ -195,74 +188,68 @@ impl Board {
         msk |= soea_occl(gen, pro) & nowe_occl(org, pro);
         msk |= nowe_occl(gen, pro) & soea_occl(org, pro);
 
-        self.black ^= msk;
-        self.white ^= msk;
+        self.ps ^= msk;
+        self.os ^= msk;
 
         self.update_moves_fast();
+
+        self.swap();
 
         msk
     }
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] 
-    pub fn f_do_move(&mut self, t : Turn, m : Move) -> u64 {
+    pub fn f_do_move(&mut self, m : Move) -> u64 {
 
         use do_moves_fast::fast_do_move;
 
-        if m.is_pass() || m.is_null() {
-            return 0;
-        }
-        let mut pro = 0u64; 
-        let mut gen = 0u64;
+        // if m.is_pass() || m.is_null() {
+        //     self.swap();
+        //     return 0;
+        // }
 
-        match t {
-            Turn::BLACK => {
-                gen = self.black;
-                pro = self.white;
-            },
-            Turn::WHITE => {
-                gen = self.white;
-                pro = self.black;
-            }
-        }
+        let flipped = fast_do_move(m.data , m.x(), m.y(), self.ps, self.os);
 
-        let flipped = fast_do_move(m.x(), m.y(), gen, pro);
+        self.ps ^= flipped;
+        self.os ^= flipped;
 
-        self.black ^= flipped;
-        self.white ^= flipped;
-
-        match t {
-            Turn::BLACK => {
-                self.white ^= m.mask();
-            },
-            Turn::WHITE => {
-                self.black ^= m.mask();
-            }
-        }
+        self.os ^= m.mask();
 
         self.update_moves_fast();
+
+        self.swap();
+
         flipped
+    }
+
+
+    pub fn swap(&mut self) {
+        let mut tmp = self.ps;
+        self.ps = self.os;
+        self.os = tmp;
+
+        tmp = self.pm;
+        self.pm = self.om;
+        self.om = tmp;
+
+        self.ct = !self.ct;
     }
     
     
     /// Returns the bit mask of the given player's pieces
-    pub fn pieces(&self, t : Turn) -> u64 {
-        match t {
-            Turn::BLACK => self.black,
-            Turn::WHITE => self.white,
-        }
+    pub fn pieces(&self) -> (u64,u64) {
+        (self.ps, self.os)
     }
     
     
     /// Returns the mobility bit mask of the given player
-    pub fn mobility(&self, t : Turn) -> u64 {
-        match t {
-            Turn::BLACK => self.bmove,
-            Turn::WHITE => self.wmove,
-        }
+    pub fn mobility(&self) -> (u64, u64) {
+        (self.pm,self.om)
     }
     
     
     /// Returns the stability bit mask of the given player
+    #[deprecated]
     pub fn stability(&self, t : Turn) -> u64 {
         //sides
         const top : u64 = 255u64;
@@ -271,10 +258,10 @@ impl Board {
         const rht : u64 = 9259542123273814144u64;
         
         let gen = match t {
-            Turn::BLACK => self.black,
-            Turn::WHITE => self.white
+            Turn::BLACK => self.ps,
+            Turn::WHITE => self.os
         };
-        let pcs = self.black|self.white;
+        let pcs = self.ps|self.os;
 
         let vrt = nort_occl(bot & pcs, pcs) & sout_occl(top & pcs, pcs);
         let hrz = east_occl(lft & pcs, pcs) & west_occl(rht & pcs, pcs);
@@ -299,27 +286,21 @@ impl Board {
     
     
     /// Counts the number of pieces a player has on the board.
-    pub fn count_pieces(&self, t : Turn) -> u8 {
-        match t {
-            Turn::BLACK => popcount_64(self.black),
-            Turn::WHITE => popcount_64(self.white),
-        }
+    pub fn count_pieces(&self, t : Turn) -> (u8, u8) {
+        (popcount_64(self.ps), popcount_64(self.os))
     }
     
     
-    /// Gets the moves available to a given player and stores them in the
+    /// Gets the moves available to the current player and stores them in the
     /// array that is passed as an argument. The number of moves is returned.
-    pub fn get_moves(&self, t : Turn, out_moves : &mut MoveList) -> u8 {
+    pub fn get_moves(&self, out_moves : &mut MoveList) -> u8 {
     
-        if !self.has_move(t) {
+        if !self.has_move().0 {
             out_moves[0] = Move::pass();
             return 1;
         }
     
-        let mut mvs = match t {
-            Turn::BLACK => self.bmove,
-            Turn::WHITE => self.wmove,
-        };
+        let mut mvs = self.pm;
         
         let n = popcount_64(mvs);
         
@@ -336,7 +317,7 @@ impl Board {
     /// must be large enough. Returns the number of empty squares found.
     pub fn get_empty(&self, out_moves : &mut [Move]) -> u8 {
         
-        let mut mvs = !(self.black | self.white);
+        let mut mvs = !(self.ps | self.os);
         if mvs == 0 {
             return 0;
         }
@@ -352,26 +333,28 @@ impl Board {
     }
     
     
-    /// Returns the index of a valid move for the given player in the move array
+    /// Returns the index of a valid move for the current player in the move 
+    /// array
     pub fn get_move_index(&self, t : Turn, m : Move) -> usize {
-        popcount_64(self.mobility(t) & (m.mask()-1)) as usize
+        popcount_64(self.mobility().0 & (m.mask()-1)) as usize
     }
     
     
     // Internal to the Board struct, finds and updates the moves for the given
     // player.
+    #[deprecated]
     fn find_moves(&mut self, t : Turn) {
         let mut moves = 0;
-        let empty = !(self.black | self.white);
+        let empty = !(self.ps | self.os);
         let mut tmp = 0;
         
         let gen = match t {
-            Turn::BLACK => self.black,
-            Turn::WHITE => self.white
+            Turn::BLACK => self.ps,
+            Turn::WHITE => self.os
         };
         let pro = match t {
-            Turn::BLACK => self.white,
-            Turn::WHITE => self.black
+            Turn::BLACK => self.os,
+            Turn::WHITE => self.ps
         };
 
         tmp = sout_one(sout_occl(gen, pro) & pro);
@@ -399,12 +382,13 @@ impl Board {
         moves |= tmp & empty;
 
         match t {
-            Turn::BLACK => {self.bmove = moves;},
-            Turn::WHITE => {self.wmove = moves;}
+            Turn::BLACK => {self.pm = moves;},
+            Turn::WHITE => {self.om = moves;}
         };
     }
 
     ///This function makes sure the move bitboards are current in the function
+    #[deprecated]
     pub fn update_moves(&mut self) {
         self.find_moves(Turn::BLACK);
         self.find_moves(Turn::WHITE);
@@ -413,8 +397,8 @@ impl Board {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]    
     pub fn update_moves_fast(&mut self) {
         use find_moves_fast::fast_find_moves;
-        self.bmove = fast_find_moves(self.black, self.white);
-        self.wmove = fast_find_moves(self.white, self.black);
+        self.pm = fast_find_moves(self.ps, self.os);
+        self.om = fast_find_moves(self.os, self.ps);
     }
 }
 
@@ -429,9 +413,9 @@ impl fmt::Display for Board {
             for x in 0..8 {
                 let m = Move::new(x,y).mask();
                 let e = err.and(
-                    if self.black & m != 0 {
+                    if self.ps & m != 0 {
                         write!(f, " @")
-                    } else if self.white & m != 0 {
+                    } else if self.os & m != 0 {
                         write!(f, " O")
                     } else {
                         write!(f, "  ")
@@ -445,7 +429,7 @@ impl fmt::Display for Board {
             for x in 0..8 {
                 let m = Move::new(x,y).mask();
                 let e = err.and(
-                    if self.bmove & m != 0 {
+                    if self.pm & m != 0 {
                         write!(f, " *")
                     } else {
                         write!(f, "  ")
@@ -459,7 +443,7 @@ impl fmt::Display for Board {
             for x in 0..8 {
                 let m = Move::new(x,y).mask();
                 let e = err.and(
-                    if self.wmove & m != 0 {
+                    if self.om & m != 0 {
                         write!(f, " *")
                     } else {
                         write!(f, "  ")
@@ -472,7 +456,7 @@ impl fmt::Display for Board {
             for x in 0..8 {
                 let m = Move::new(x,y).mask();
                 let e = err.and(
-                    if self.black & m != 0 {
+                    if self.ps & m != 0 {
                         write!(f, " *")
                     } else {
                         write!(f, "  ")
@@ -485,7 +469,7 @@ impl fmt::Display for Board {
             for x in 0..8 {
                 let m = Move::new(x,y).mask();
                 let e = err.and(
-                    if self.white & m != 0 {
+                    if self.os & m != 0 {
                         write!(f, " *")
                     } else {
                         write!(f, "  ")
