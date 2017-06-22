@@ -246,3 +246,16 @@ pub fn all_board_syms(mut bb : u64, mut bw : u64) -> [(u64,u64);8] {
 
     r
 }
+
+pub fn print_bitboard(b : u64) {
+    println!("{:08b}\n{:08b}\n{:08b}\n{:08b}\n{:08b}\n{:08b}\n{:08b}\n{:08b}\n",
+        (b >>  0) & 0xff,
+        (b >>  8) & 0xff,
+        (b >> 16) & 0xff,
+        (b >> 24) & 0xff,
+        (b >> 32) & 0xff,
+        (b >> 40) & 0xff,
+        (b >> 48) & 0xff,
+        (b >> 56) & 0xff
+    );
+}

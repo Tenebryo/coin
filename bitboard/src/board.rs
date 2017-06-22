@@ -79,6 +79,10 @@ impl Move {
             d => 1u64 << (d)
         }
     }
+
+    pub fn offset(&self) -> u8 {
+        self.data & 0b111_111
+    }
     
     fn from_off(off : u8) -> Move {
         Move {
@@ -157,10 +161,10 @@ impl Board {
     
     
     /// Updates a board by playing the given move for the given player
-    pub fn do_move(&mut self, t : Turn, m : Move) {
+    pub fn do_move(&mut self, t : Turn, m : Move) -> u64{
     
         if m.is_pass() || m.is_null() {
-            return;
+            return 0;
         }
         let mut pro = 0u64; 
         let mut gen = 0u64;
@@ -194,8 +198,49 @@ impl Board {
         self.black ^= msk;
         self.white ^= msk;
 
-        self.find_moves(Turn::BLACK);
-        self.find_moves(Turn::WHITE);
+        self.update_moves_fast();
+
+        msk
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] 
+    pub fn f_do_move(&mut self, t : Turn, m : Move) -> u64 {
+
+        use do_moves_fast::fast_do_move;
+
+        if m.is_pass() || m.is_null() {
+            return 0;
+        }
+        let mut pro = 0u64; 
+        let mut gen = 0u64;
+
+        match t {
+            Turn::BLACK => {
+                gen = self.black;
+                pro = self.white;
+            },
+            Turn::WHITE => {
+                gen = self.white;
+                pro = self.black;
+            }
+        }
+
+        let flipped = fast_do_move(m.x(), m.y(), gen, pro);
+
+        self.black ^= flipped;
+        self.white ^= flipped;
+
+        match t {
+            Turn::BLACK => {
+                self.white ^= m.mask();
+            },
+            Turn::WHITE => {
+                self.black ^= m.mask();
+            }
+        }
+
+        self.update_moves_fast();
+        flipped
     }
     
     
@@ -415,6 +460,32 @@ impl fmt::Display for Board {
                 let m = Move::new(x,y).mask();
                 let e = err.and(
                     if self.wmove & m != 0 {
+                        write!(f, " *")
+                    } else {
+                        write!(f, "  ")
+                    }
+                );
+                err = e;
+            }
+            t = err.and(write!(f, "|"));
+            
+            for x in 0..8 {
+                let m = Move::new(x,y).mask();
+                let e = err.and(
+                    if self.black & m != 0 {
+                        write!(f, " *")
+                    } else {
+                        write!(f, "  ")
+                    }
+                );
+                err = e;
+            }
+            t = err.and(write!(f, "|"));
+            
+            for x in 0..8 {
+                let m = Move::new(x,y).mask();
+                let e = err.and(
+                    if self.white & m != 0 {
                         write!(f, " *")
                     } else {
                         write!(f, "  ")

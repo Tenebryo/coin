@@ -5,6 +5,7 @@
 pub mod bit_ops;
 pub mod board;
 mod find_moves_fast;
+mod do_moves_fast;
 
 pub use board::Board;
 pub use board::Turn;
@@ -17,6 +18,8 @@ pub use board::MAX_MOVES;
 #[cfg(test)]
 mod tests {
     extern crate rand;
+
+    use bit_ops;
 
     use board::Board;
     use board::Turn;
@@ -63,6 +66,57 @@ mod tests {
                     b1.update_moves();
                     b2.do_move(t, m);
                     b2.update_moves_fast();
+                }
+
+                assert!(b1 == b2);
+
+                t = !t;
+            }
+        }
+    }
+
+    #[test]
+    fn fast_do_move_test() {
+        let mut rng = rand::thread_rng();
+        for _ in 0..1024 {
+            let mut b1 : Board = Board::new();
+            let mut b2 : Board = Board::new();
+
+
+            assert!(b1 == b2);
+
+            let mut t = Turn::BLACK;
+
+            while !b1.is_done() {
+                let mut moves : MoveList = [Move::null(); MAX_MOVES];
+
+                let n = b1.get_moves(t, &mut moves);
+
+                let bb1 = b1;
+                let bb2 = b2;
+
+                let mut f1 = 0;
+                let mut f2 = 0;
+                let mut m = Move::null();
+                if n != 0 {
+                    m = moves[rng.gen::<usize>()%(n as usize)];
+
+                    f1 = b1.do_move(t, m);
+                    b1.update_moves();
+                    f2 = b2.f_do_move(t, m);
+                    b2.update_moves_fast();
+                }
+
+                if (b1 != b2) {
+                    println!("{}\n\n{}", bb1, bb2);
+                    println!("{}\n\n{}", b1, b2);
+
+                    println!("Move: {}", m);
+
+                    bit_ops::print_bitboard(f1);
+                    bit_ops::print_bitboard(f2);
+
+                    println!("{:064b}\n{:064b}", bb2.pieces(t), bb2.pieces(!t));
                 }
 
                 assert!(b1 == b2);
@@ -120,6 +174,33 @@ mod tests {
             b.do_move(Turn::BLACK, Move::new(3,2));
         }, iters);
         println!("do_move: {} ns/iter", (t as f64/iters as f64));
+    }
+
+    #[test]
+    fn f_do_move_bench() {
+        let iters = 100000;
+        let t = bench(|| {
+            let mut b = Board::new();
+            b.f_do_move(Turn::BLACK, Move::new(3,2));
+        }, iters);
+        println!("f_do_move: {} ns/iter", (t as f64/iters as f64));
+    }
+
+    #[test]
+    fn fast_do_move_bench() {
+        let iters = 100000;
+        let mut rng = rand::thread_rng();
+        let p = rng.gen::<u64>();
+        let mut o = rng.gen::<u64>();
+        o &= !p;
+        let m = rng.gen::<u8>();
+
+        use do_moves_fast::fast_do_move;
+        let t = bench(|| {
+            fast_do_move(m & 7, (m >> 3) & 7, p, o);
+        }, iters);
+        
+        println!("fast_do_move: {} ns/iter", (t as f64/iters as f64));
     }
     
     fn bench<F>(sample : F, iters : usize) -> u64 where F: Fn() {

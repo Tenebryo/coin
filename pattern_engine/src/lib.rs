@@ -53,9 +53,8 @@ mod tests {
                 }
             }
         }
-        println!("Mask: {:64b}", mask);
+        
         use bitboard::bit_ops::popcount_64;
-        println!("Count: {}", popcount_64 (mask));
 
         let testb = rng.gen::<u64>();
         let mut testw = rng.gen::<u64>();
