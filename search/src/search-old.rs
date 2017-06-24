@@ -21,6 +21,8 @@ use heuristic;
 #[macro_use]
 use common;
 
+/*
+
 pub trait Search {
     /// Search for good move starting at the given position for the given player
     fn search(&mut self, bb : Board, max_ms : u32, t : Turn) -> Move;
@@ -154,7 +156,7 @@ impl SearchEngine {
                 None => {}
             }
         }
-        // */
+        // * /
     
         //check if we've reached the max depth/the game has ended
         if bb.is_done() || d == 0 {
@@ -564,3 +566,4 @@ impl SearchEngine {
 
 
 
+// */

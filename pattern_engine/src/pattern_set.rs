@@ -1,7 +1,8 @@
-//use bson;
+
 
 use Pattern;
 
+#[derive(Serialize, Deserialize)]
 pub struct PatternSet {
     patterns : Vec< Pattern >,
 }
@@ -22,15 +23,6 @@ impl PatternSet {
         PatternSet {
             patterns : patterns
         }
-    }
-
-    ///load a pattern set from bson data.
-    pub fn from_bson() -> PatternSet {
-        PatternSet::new()
-    }
-
-    pub fn save_bson(&self) {
-
     }
 
     ///adds the scores of each of the patterns together and returns the final

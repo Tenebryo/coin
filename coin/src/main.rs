@@ -1,13 +1,18 @@
 extern crate bitboard;
+extern crate heuristic;
+extern crate search;
+
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+extern crate serde_json;
 //extern crate tensorflow;
+extern crate rand;
 
 #[macro_use]
 pub mod common;
 
-pub mod heuristic;
-pub mod search;
 pub mod player;
-pub mod transposition;
 pub mod opening;
 //pub mod ml_heuristic;
 
@@ -39,6 +44,10 @@ fn main() {
     
     let mut ms_left = 0;
     let mut b = Board::new();
+
+    if t == Turn::BLACK {
+        b.f_do_move(Move::pass());
+    }
     
     cerrln!("{}", b);
     
@@ -70,7 +79,7 @@ fn main() {
                 
                 cerrln!("[COIN]: Opponent moved {} <{} ms>", m, ms_left);
                 
-                b.do_move(!t, m);
+                b.f_do_move(m);
             },
             Err(e) => {
                 panic!(e)
@@ -78,10 +87,10 @@ fn main() {
         }
         cerrln!("\n{}", b);
         
-        //make my move
+        // make my move
         let m = p.do_move(b.copy(), ms_left);
         
-        b.do_move(t, m);
+        b.f_do_move(m);
         
         if m.is_null() {
             println!("-1 -1");
@@ -94,5 +103,5 @@ fn main() {
         cerrln!("\n{}", b);
     }
     
-    cerrln!("RESULT: {}/{}", b.count_pieces(Turn::BLACK), b.count_pieces(Turn::WHITE));
+    cerrln!("RESULT: {}/{}", b.count_pieces().0, b.count_pieces().1);
 }

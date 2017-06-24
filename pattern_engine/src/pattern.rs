@@ -2,6 +2,7 @@ use PatternLUT;
 
 ///A set of scores associated with each possible stone configuration for a 
 ///static set of squares.
+#[derive(Serialize, Deserialize)]
 pub struct Pattern {
     //a mask representing the pattern squares
     //mask    : u64,

@@ -91,6 +91,10 @@ impl Move {
     }
 }
 
+pub fn empty_movelist() -> MoveList {
+    [Move::null(); MAX_MOVES]
+}
+
 impl fmt::Display for Move {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -142,7 +146,6 @@ impl Board {
             ct   : self.ct,
         }
     }
-    
     
     /// Checks whether or not the game is over
     pub fn is_done(&self) -> bool {
@@ -285,9 +288,20 @@ impl Board {
     }
     
     
-    /// Counts the number of pieces a player has on the board.
-    pub fn count_pieces(&self, t : Turn) -> (u8, u8) {
+    /// Counts the number of stones each player has on the board.
+    pub fn count_pieces(&self) -> (u8, u8) {
         (popcount_64(self.ps), popcount_64(self.os))
+    }
+
+
+    /// Counts the number of stones on the board.
+    pub fn total_pieces(&self) -> u8 {
+        popcount_64(self.ps | self.os)
+    }
+
+    /// Counts the number empty squares on the board.
+    pub fn total_empty(&self) -> u8 {
+        64-popcount_64(self.ps | self.os)
     }
     
     

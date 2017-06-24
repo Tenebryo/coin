@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 
 use bitboard::Board;
-use bitboard::Turn;
+use std::i32;
 
 type Position = (u64, u64);
 
@@ -11,8 +11,7 @@ type ZobristHash = u32; //zobrist hash type
 type Usage = (usize, ZobristHash); //age then zobrist hash
 
 fn zobrist(b : Board) -> ZobristHash {
-    let mut bp = b.pieces(Turn::BLACK);
-    let mut wp = b.pieces(Turn::WHITE);
+    let (mut bp, mut wp) = b.pieces();
     
     let mut hash = 0;
     
@@ -32,7 +31,7 @@ fn zobrist(b : Board) -> ZobristHash {
 }
 
 fn position(b : Board) -> Position {
-    (b.pieces(Turn::BLACK), b.pieces(Turn::WHITE))
+    b.pieces()
 }
 
 
@@ -40,10 +39,12 @@ fn position(b : Board) -> Position {
 ///key when overflow occurs. This could be changed to remove a random key or
 ///perhaps the least used key.
 pub struct TranspositionTable {
-    entries     : HashMap<ZobristHash, (Position, Option<i32>, Option<i32>)>,
+    entries     : HashMap<ZobristHash, (Position, i32, i32)>,
     size        : usize,
     age         : usize,
 }
+
+const DEFAULT_VALUE : (i32, i32) = (i32::MIN, i32::MAX);
 
 impl TranspositionTable {
     
@@ -58,7 +59,7 @@ impl TranspositionTable {
     }
     
     ///Inserts or updates 
-    pub fn update(&mut self, b : Board, low : Option<i32>, high : Option<i32>) {
+    pub fn update(&mut self, b : Board, low : i32, high : i32) {
         let zob = zobrist(b);
         let pos = position(b);
         
@@ -88,7 +89,7 @@ impl TranspositionTable {
     }
     
     ///Gets the bound information for a board.
-    pub fn fetch(&self, b : Board) -> (Option<i32>, Option<i32>) {
+    pub fn fetch(&self, b : Board) -> (i32, i32) {
         let zob = zobrist(b);
         if self.entries.contains_key(&zob) {
             let pos = position(b);
@@ -101,10 +102,10 @@ impl TranspositionTable {
             if p == pos {
                 (low, high)
             } else {
-                (None, None)
+                DEFAULT_VALUE
             }
         } else {
-            (None, None)
+            DEFAULT_VALUE
         }
     }
     

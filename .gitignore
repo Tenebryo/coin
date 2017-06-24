@@ -8,3 +8,7 @@ Cargo.lock
 
 # Remove swap/backup files
 *~
+
+config.json
+
+data/

@@ -13,6 +13,7 @@ pub use board::Move;
 pub use board::MoveList;
 pub use board::MoveOrder;
 pub use board::MAX_MOVES;
+pub use board::empty_movelist;
 
 
 #[cfg(test)]
@@ -201,6 +202,22 @@ mod tests {
         }, iters);
         
         println!("fast_do_move: {} ns/iter", (t as f64/iters as f64));
+    }
+
+    #[test]
+    fn test_fast_min() {
+        use do_moves_fast::fast_min;
+
+        println!("{}", fast_min(0,5));
+        println!("{}", fast_min(5,2));
+        println!("{}", fast_min(100,5));
+        println!("{}", fast_min(2,7));
+        println!("{}", fast_min(2,2));
+
+        assert!(fast_min(0,5) == 0);
+        assert!(fast_min(5,5) == 5);
+        assert!(fast_min(100,5) == 5);
+        assert!(fast_min(2,7) == 2);
     }
     
     fn bench<F>(sample : F, iters : usize) -> u64 where F: Fn() {

@@ -27,6 +27,7 @@ pub struct PatternLUT {
     table : [[u32; TABLE_SIZE];8],
 }
 
+#[derive(Serialize, Deserialize)]
 #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
 impl PatternLUT {
     ///Create a new empty Pattern Look Up Table
@@ -116,6 +117,7 @@ impl PatternLUT {
 
 ///A LUT to convert stone configurations of static square sets into consecutive
 ///indices.
+#[derive(Serialize, Deserialize)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub struct PatternLUT {
     mask  : u64,

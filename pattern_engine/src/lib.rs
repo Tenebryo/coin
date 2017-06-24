@@ -3,6 +3,11 @@ extern crate bson;
 extern crate rand;
 extern crate bitboard;
 
+#[macro_use]
+extern crate serde_derive;
+extern crate serde;
+extern crate serde_json;
+
 mod pattern_lut;
 mod pattern;
 mod pattern_set;
