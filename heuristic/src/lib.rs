@@ -10,7 +10,14 @@ extern crate rand;
 
 mod heuristic;
 
-pub use heuristic::{Heuristic, BasicHeuristic, PatternHeuristic, WLDHeuristic};
+pub use heuristic::{
+    Heuristic, 
+    BasicHeuristic, 
+    ScaledBasicHeuristic, 
+    PatternHeuristic, 
+    WLDHeuristic, 
+    HandmadeHeuristic
+};
 
 #[cfg(test)]
 mod tests {

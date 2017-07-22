@@ -32,7 +32,14 @@ pub trait Heuristic : Sized {
     fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder);
 }
 ///Very basic hueristic only counts discs
+#[derive(Clone)]
 pub struct BasicHeuristic {
+}
+
+impl BasicHeuristic {
+    pub fn new() -> BasicHeuristic {
+        BasicHeuristic{}
+    }
 }
 
 impl Heuristic for BasicHeuristic {
@@ -45,19 +52,83 @@ impl Heuristic for BasicHeuristic {
     
     }
 }
+///Very basic hueristic only counts discs
+#[derive(Clone)]
+pub struct ScaledBasicHeuristic {
+    scale : i32,
+}
 
+impl ScaledBasicHeuristic {
+    pub fn new(scale: i32) -> ScaledBasicHeuristic {
+        ScaledBasicHeuristic{scale}
+    }
+}
+
+impl Heuristic for ScaledBasicHeuristic {
+    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
+        let pieces = b.count_pieces();
+        (pieces.0 as i32 - pieces.1 as i32) * self.scale
+    }
+    
+    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+    
+    }
+}
+
+#[derive(Clone)]
+pub struct WLDHeuristic {
+
+}
+
+impl WLDHeuristic {
+    pub fn new() -> WLDHeuristic {
+        WLDHeuristic{}
+    }
+}
+
+impl Heuristic for WLDHeuristic {
+
+    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
+        let pieces = b.count_pieces();
+        let df = (pieces.0 as i8) - (pieces.1 as i8);
+        if df > 0 {
+            1
+        } else if df == 0 {
+            0
+        } else {
+            -1
+        }
+    }
+    
+    
+    
+    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+    
+    }
+}
+
+
+#[derive(Clone)]
 pub struct PatternHeuristic {
     ps      : Box<PatternSet>,
 }
 
 impl PatternHeuristic {
+
+    pub fn from_pattern_set(ps : Box<PatternSet>) -> PatternHeuristic {
+        PatternHeuristic {
+            ps
+        }
+    }
+
     pub fn file(filename : &Path) -> PatternHeuristic {
         let mut f = File::open(filename).expect("Unable to read pattern file.");
 
         let mut buf = String::new();
         f.read_to_string(&mut buf).expect("Unable to read pattern file.");
 
-        let ps : PatternSet = serde_json::from_str(&buf).expect("Unable to parse pattern file.");
+        let mut ps : PatternSet = serde_json::from_str(&buf).expect("Unable to parse pattern file.");
+        ps.trim(8*3);
 
         PatternHeuristic {
             ps : Box::new(ps),
@@ -95,22 +166,21 @@ impl Heuristic for PatternHeuristic {
     }
 }
 
-/*
+
 
 //Slightly more advanced heuristic weights different patterns
-pub struct HPattern {
-    pub piece_diff  : i32,
+#[derive(Clone)]
+pub struct HandmadeHeuristic {
 }
 
-impl HPattern {
-    pub fn new() -> HPattern {
-        HPattern {
-            piece_diff  : 1,
+impl HandmadeHeuristic {
+    pub fn new() -> HandmadeHeuristic {
+        HandmadeHeuristic {
         }
     }
 }
 
-impl Heuristic for HPattern {
+impl Heuristic for HandmadeHeuristic {
 
     fn evaluate(&mut self, bb : Board, t : Turn) -> i32 {
     
@@ -156,12 +226,31 @@ impl Heuristic for HPattern {
         const c3_w : i32 = 8;
         const d3_w : i32 = 2;
         const d4_w : i32 = 1;
+
+        const piece_diff : [i32; 60] = [
+            -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+            -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 2, 2, 3, 3, 4, 4, 5, 5, 1000,
+        ];
+
+        const mobility : [i32; 60] = [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            4, 4, 4, 5, 5, 5, 6, 6, 6, 7,
+            7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+            9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+            10,10,10,10,10,11,11,11,11,11,
+            5, 5, 5, 5, 5, 0, 0, 0, 0, 0,
+        ];
         
         //compensate for corners that are already used.
         const crn_occ_cmp : i32 = 48;
         
-        let b = bb.pieces(Turn::BLACK);
-        let w = bb.pieces(Turn::WHITE);
+        let (b, w) = bb.pieces();
+
+        let pieces = bb.total_pieces() as usize;
         
         //get the corners occupied by each player
         let crn_occ = (b | w) & a1;
@@ -182,7 +271,7 @@ impl Heuristic for HPattern {
             return score.signum() * 1_000_000_000i32 + score;
         }
         
-        score *= self.piece_diff;
+        score *= piece_diff[pieces - 4];
 
         score += a1_w * ((popcount_64(b & a1) as i32) - (popcount_64(w & a1) as i32));
         score += b1_w * ((popcount_64(b & b1) as i32) - (popcount_64(w & b1) as i32));
@@ -211,10 +300,11 @@ impl Heuristic for HPattern {
         ) * 40;
         // */
         //count mobility
+        let (bm, wm) = bb.mobility();
         score += (
-            popcount_64(bb.mobility(Turn::BLACK)) as i32 - 
-            popcount_64(bb.mobility(Turn::WHITE)) as i32
-        ) * 8;
+            popcount_64(bm) as i32 - 
+            popcount_64(wm) as i32
+        ) * mobility[pieces - 4];
         
         
         score
@@ -224,32 +314,7 @@ impl Heuristic for HPattern {
     
     }
 }
-// */
-
-pub struct WLDHeuristic {
-
-}
-
-impl Heuristic for WLDHeuristic {
-
-    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
-        let pieces = b.count_pieces();
-        let df = (pieces.0 as i8) - (pieces.1 as i8);
-        if df > 0 {
-            1
-        } else if df == 0 {
-            0
-        } else {
-            -1
-        }
-    }
-    
-    
-    
-    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
-    
-    }
-}
+// 
 
 
 

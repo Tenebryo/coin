@@ -2,7 +2,7 @@
 
 use Pattern;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct PatternSet {
     patterns : Vec< Pattern >,
 }
@@ -33,7 +33,7 @@ impl PatternSet {
     }
 
     ///The _raw version does the same as eval, but returns the raw float.
-    fn eval_raw(&self, bits_b : u64, bits_w : u64) -> (f32, [(u64,u64);8]) {
+    pub fn eval_raw(&self, bits_b : u64, bits_w : u64) -> (f32, [(u64,u64);8]) {
 
         use bitboard::bit_ops::all_board_syms;
 
@@ -62,6 +62,18 @@ impl PatternSet {
 
     ///Given a set of positions, adjust the weights of the patterns to fit the
     ///the data. For best results, the data should be shuffled before using.
+    pub fn adjust(&mut self, syms : [(u64,u64);8], adjust_amount : f32){
+
+        for p in self.patterns.iter_mut() {
+            for sym in syms.iter() {
+                p.adjust(sym.0, sym.1, adjust_amount);
+            }
+        }
+
+    }
+
+    ///Given a set of positions, adjust the weights of the patterns to fit the
+    ///the data. For best results, the data should be shuffled before using.
     pub fn train(&mut self, training_data : &mut [(u64,u64,i16)], eta : f32) -> f64{
         let mut total_cost = 0.0f64;
 
@@ -81,5 +93,11 @@ impl PatternSet {
 
         //return the average cost of the data
         total_cost / training_data.len() as f64
+    }
+
+    pub fn trim(&mut self, n : i16) {
+        for p in self.patterns.iter_mut() {
+            p.trim(n);
+        }
     }
 }

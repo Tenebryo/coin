@@ -1,11 +1,14 @@
 use heuristic::WLDHeuristic;
 use heuristic::BasicHeuristic;
+use heuristic::ScaledBasicHeuristic;
 use heuristic::PatternHeuristic;
+use heuristic::HandmadeHeuristic;
 use bitboard::Board;
 use bitboard::Move;
 use bitboard::Turn;
 use bitboard::empty_movelist;
 use search::mtdf_id_timeout;
+use search::NegamaxSearch;
 
 use std::path::Path;
 use std::time::Instant;
@@ -13,7 +16,8 @@ use std::time::Instant;
 
 
 pub struct Player {
-    phs     : [PatternHeuristic; 20],
+    phs     : [Box<PatternHeuristic>; 20],
+    //phs     : [BasicHeuristic; 20],
 }
 
 const time_alloc : [f32; 64] = [
@@ -31,17 +35,36 @@ impl Player {
     pub fn new(s : Turn) -> Player {
         Player {
             phs     : [
-                PatternHeuristic::random(), PatternHeuristic::random(), 
-                PatternHeuristic::random(), PatternHeuristic::random(), 
-                PatternHeuristic::random(), PatternHeuristic::random(), 
-                PatternHeuristic::random(), PatternHeuristic::random(), 
-                PatternHeuristic::random(), PatternHeuristic::random(),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e01-03.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e04-06.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e07-09.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e10-12.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e13-15.json"))),
 
-                PatternHeuristic::random(), PatternHeuristic::random(), 
-                PatternHeuristic::random(), PatternHeuristic::random(), 
-                PatternHeuristic::random(), PatternHeuristic::random(), 
-                PatternHeuristic::random(), PatternHeuristic::random(), 
-                PatternHeuristic::random(), PatternHeuristic::random(),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e16-18.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e19-21.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e22-24.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e25-27.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e28-30.json"))),
+
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e31-33.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e34-36.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e37-39.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e40-42.json"))),
+
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e40-42.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e40-42.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e40-42.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e40-42.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e40-42.json"))),
+                Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e40-42.json")))
+                // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e43-45.json"))),
+
+                // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e46-48.json"))),
+                // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e49-51.json"))),
+                // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e52-54.json"))),
+                // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e55-57.json"))),
+                // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e58-60.json")))
             ],
         }
     }
@@ -56,7 +79,10 @@ impl Player {
         let alloc_time = (ms_left as f32 * time_alloc[total as usize]) as u64;
 
         
-        let mut out_move = mtdf_id_timeout(b, &mut self.phs, Turn::BLACK, 30, alloc_time);
+        let mut out_move = mtdf_id_timeout(b.copy(), &self.phs, 
+                                        Box::new(HandmadeHeuristic::new()), 
+                                        40, alloc_time);
+
 
 
         if out_move.is_null() {

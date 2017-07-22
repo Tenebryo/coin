@@ -7,7 +7,7 @@ pub const MAX_MOVES : usize = 28;
 pub type MoveList = [Move; MAX_MOVES];
 pub type MoveOrder = [(i32, usize); MAX_MOVES];
 
-#[derive(Copy, Clone, PartialEq, Hash, Eq)]
+#[derive(Copy, Clone, PartialEq, Hash, Eq, Serialize, Deserialize)]
 pub enum Turn {
     BLACK,
     WHITE,
@@ -33,7 +33,7 @@ impl fmt::Display for Turn {
     }
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Move {
     data    : u8,
 }
@@ -108,7 +108,7 @@ impl fmt::Display for Move {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Hash, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
 pub struct Board {
     ///Player Stones
     ps   : u64,
@@ -134,6 +134,22 @@ impl Board {
             ct   : Turn::BLACK,
         }
     }
+
+
+    /// Returns a new board from a given position and current turn, represented
+    /// by two 64-bit integers
+    pub fn position(ps : u64, os : u64, ct : Turn) -> Board {
+        let pm = 0;
+        let om = 0;
+        let mut b = Board {
+            ps, os,
+            pm, om,
+            ct,
+        };
+
+        b.update_moves_fast();
+        b
+    }
     
     
     /// Returns a copy of the board
@@ -145,6 +161,11 @@ impl Board {
             om   : self.om,
             ct   : self.ct,
         }
+    }
+
+    /// Gets the current turn
+    pub fn get_turn(&self) -> Turn {
+        self.ct
     }
     
     /// Checks whether or not the game is over
@@ -349,7 +370,7 @@ impl Board {
     
     /// Returns the index of a valid move for the current player in the move 
     /// array
-    pub fn get_move_index(&self, t : Turn, m : Move) -> usize {
+    pub fn get_move_index(&self, m : Move) -> usize {
         popcount_64(self.mobility().0 & (m.mask()-1)) as usize
     }
     

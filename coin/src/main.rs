@@ -6,7 +6,6 @@ extern crate search;
 extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
-//extern crate tensorflow;
 extern crate rand;
 
 #[macro_use]
@@ -14,7 +13,6 @@ pub mod common;
 
 pub mod player;
 pub mod opening;
-//pub mod ml_heuristic;
 
 use std::env;
 use std::io;

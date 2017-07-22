@@ -2,6 +2,9 @@
 #![allow(unused_assignments)]
 #![feature(asm)]
 
+#[macro_use]
+extern crate serde_derive;
+
 pub mod bit_ops;
 pub mod board;
 mod find_moves_fast;

@@ -2,7 +2,7 @@ use PatternLUT;
 
 ///A set of scores associated with each possible stone configuration for a 
 ///static set of squares.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Pattern {
     //a mask representing the pattern squares
     //mask    : u64,
@@ -45,7 +45,7 @@ impl Pattern {
         let mut rng = rand::thread_rng();
 
         for _ in 0..n {
-            data.push(rng.gen::<f32>());
+            data.push((rng.gen::<f32>() -  0.5) * 640.0);
         }
 
         Pattern::new(mask, data.into_boxed_slice())
@@ -71,5 +71,15 @@ impl Pattern {
         let i = self.poslut.eval(bits_b, bits_w);
         self.scores[i] -= amount;
         self.occurs[i] += 1;
+    }
+
+    /// Trims any pattern scores that have less than n occurances because there
+    /// is likely not enough data to be accurate.
+    pub fn trim(&mut self, n : i16) {
+        for i in 0..(self.scores.len()) {
+            if self.occurs[i] < n {
+                self.scores[i] = 0.0;
+            }
+        }
     }
 }

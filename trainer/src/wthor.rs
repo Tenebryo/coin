@@ -1,3 +1,6 @@
+
+/// This file deals with loading information from WTHOR format game databases.
+
 use std::io::prelude::*;
 use std::io::Seek;
 use std::io::SeekFrom;

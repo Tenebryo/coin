@@ -117,7 +117,7 @@ impl PatternLUT {
 
 ///A LUT to convert stone configurations of static square sets into consecutive
 ///indices.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub struct PatternLUT {
     mask  : u64,
