@@ -24,14 +24,11 @@ use NegamaxSearch;
 
 ///Implements the MTD(f) algorithm
 ///
+/// * `ng` The negamax search object
 /// * `bb` The root position to search from
-/// * `h` The heuristic to use for searches
-/// * `t` The current turn
 /// * `g` A guess of the true minimax score.
 /// * `d` The maximum depth to search to
 /// * `ms_left` The number of milliseconds allocated to make the move
-/// * `start` The time the search was started
-/// * `to_flag` An out-parameter to signal when a timeout occured
 pub fn mtdf_timeout<H : Heuristic>(
     ng      : &mut NegamaxSearch<H>,
     bb      : Board, 
@@ -82,8 +79,6 @@ pub fn mtdf_timeout<H : Heuristic>(
 /// * `beta` The upper bound of the minimax score
 /// * `d` The maximum depth to search to
 /// * `ms_left` The number of milliseconds allocated to make the move
-/// * `start` The time the search was started
-/// * `to_flag` An out-parameter to signal when a timeout occured
 pub fn mtdf_id_timeout<H : Heuristic + Clone, Hf : Heuristic + Clone>(
     bb      : Board,
     hs      : &[Box<H>],
