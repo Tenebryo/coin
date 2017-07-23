@@ -91,6 +91,7 @@ impl Move {
     }
 }
 
+#[inline]
 pub fn empty_movelist() -> MoveList {
     [Move::null(); MAX_MOVES]
 }
