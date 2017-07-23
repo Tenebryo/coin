@@ -8,13 +8,12 @@ use std::rc::Weak;
 type Position = (u64, u64, Turn);
 
 enum NodeState {
-    UNEXPLORED,
-    EXPANDABLE,
-    COMPLETE,
-    PROVEN_WIN,
-    PROVEN_DRAW,
-    PROVEN_LOSS,
-    INVALID,
+    UNEXPLORED,     // hasn't been expanded yet
+    EXPLORED,       // already expanded
+    PROVEN_WIN,     // there is at least one child that is a proven loss for the other player
+    PROVEN_DRAW,    // current player can force a draw
+    PROVEN_LOSS,    // every move leads to a loss for the current player
+    INVALID,        // not a valid node.
 }
 
 const EXPLORATION : f32 = 1.0;
@@ -64,7 +63,7 @@ impl SearchTreeNode {
 
     fn get_score(&self, n : i32) -> f32 {
         (self.results as f32 / self.simulations  as f32)
-            + EXPLORATION * ((n as f32).log()
+            + EXPLORATION * ((n as f32).log()/self.simulations).sqrt()
     }
 
     fn expand(&mut self) {
@@ -82,17 +81,35 @@ impl SearchTreeNode {
         }
     }
 
-    fn select_node(&mut self, out_tree : &mut [usize; 60], i : usize) -> usize {
-        match self.state {
-            NodeState::EXPANDABLE => {
+    fn select_node(&mut self, out_tree : &mut [usize; 60], idx : usize) -> usize {
+        //find best child to expand.
+        //ignore solved (propagated later)
+        if NodeState::UNEXPLORED = self.state {
+            return idx;
+        }
 
-            },
-            NodeState::COMPLETE => {
-
-            },
-            _ => {
-                panic!();
+        use std::f32;
+        let mut b = 0.0;
+        let mut bi = -1;
+        //find the subnode with the best score
+        for i in 0..(self.children.size()) {
+            match self.children[i].state {
+                NodeState::EXPLORED | NodeState::UNEXPLORED => {
+                    let score = self.children[i].score;
+                    if bi == -1 || b < score {
+                        bi = i;
+                        b = score;
+                    }
+                },
+                _ => {}
             }
+        }
+
+        if bi != -1 {
+            out_tree[idx] = bi;
+            return self.children[bi].select_node(out_tree, idx+1);
+        } else {
+            panic!()
         }
     }
 }
