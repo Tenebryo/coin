@@ -51,7 +51,9 @@ pub fn mtdf_timeout<H : Heuristic>(
 
         let mut test = if g == bounds[0] { g+1 } else { g };
         
-        g = ng.negamax(bb, test-1, test, d, ms_left, &mut best_move);
+        let mut tmp_mv = Move::null();
+
+        g = ng.negamax(bb, test-1, test, d, ms_left, &mut tmp_mv);
         
         ////////////////////////////////////////////////////////////////////
         //end alpha-beta search, get result. The result must not be a timeout
@@ -64,7 +66,7 @@ pub fn mtdf_timeout<H : Heuristic>(
             return (Move::null(), 0); 
         }
 
-    
+        best_move = tmp_mv;
     }
     
     (best_move, g)
@@ -119,7 +121,7 @@ pub fn mtdf_id_timeout<H : Heuristic + Clone, Hf : Heuristic + Clone>(
         let mut sr = 0;
         let mut tr = 0;
         //isolate so compiler can detect types and optimize properly
-        let (m, v) = if empty - d == 0 {
+        let (m, v) = if empty as i32 - d as i32 <= 0 {
             let mut ng = NegamaxSearch::new(hz.clone(), start);
             let (m,v) = mtdf_timeout(&mut ng, bb.copy(), f, d, ms_left);
             tr = ng.get_transpositions();
