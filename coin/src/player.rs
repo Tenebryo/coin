@@ -80,7 +80,7 @@ impl Player {
 
         
         let mut out_move = mtdf_id_timeout(b.copy(), &self.phs, 
-                                        Box::new(HandmadeHeuristic::new()), 
+                                        Box::new(ScaledBasicHeuristic::new(10)), 
                                         40, alloc_time);
 
 
