@@ -9,6 +9,7 @@ use bitboard::Turn;
 use bitboard::empty_movelist;
 use search::mtdf_id_timeout;
 use search::NegamaxSearch;
+use search;
 
 use std::path::Path;
 use std::time::Instant;
@@ -79,10 +80,11 @@ impl Player {
         let alloc_time = (ms_left as f32 * time_alloc[total as usize]) as u64;
 
         
-        let mut out_move = mtdf_id_timeout(b.copy(), &self.phs, 
-                                        Box::new(ScaledBasicHeuristic::new(10)), 
-                                        40, alloc_time);
+        // let mut out_move = mtdf_id_timeout(b.copy(), &self.phs, 
+        //                                 Box::new(ScaledBasicHeuristic::new(10)), 
+        //                                 40, alloc_time);
 
+        let mut out_move = search::pvs_id(b, &mut self.phs, &mut ScaledBasicHeuristic::new(10), 60, alloc_time);
 
 
         if out_move.is_null() {
