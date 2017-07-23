@@ -47,7 +47,7 @@ impl<H: Heuristic> NegamaxSearch<H> {
             hr  : hr,
             to  : false,
             st  : start,
-            dc  : 4,
+            dc  : 3,
             sr  : 0,
             rn  : rand::thread_rng(),
         }
@@ -145,7 +145,8 @@ impl<H: Heuristic> NegamaxSearch<H> {
             }
 
             if alpha >= beta {
-                break;
+                return g;
+                //break;
             }
         }
 
