@@ -30,6 +30,7 @@ mod tests {
     use board::Move;
     use board::MoveList;
     use board::MAX_MOVES;
+    use board::empty_movelist;
 
     use std::time::Instant;
 
@@ -208,6 +209,35 @@ mod tests {
     }
 
     #[test]
+    fn simulate_bench() {
+        let iters = 100000;
+        let mut rng = rand::thread_rng();
+
+        let rands = (0..60_000_000).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+
+        let mut i = 0;
+        let mut test_fn = || {
+            let mut b = Board::new();
+            
+            while !b.is_done() {
+                let mut mvs = empty_movelist();
+                
+                let n = b.get_moves(&mut mvs);
+
+                b.do_move(mvs[(rands[i] % n) as usize]);
+
+                i += 1;
+            }
+        };
+
+        let t = bench(test_fn, iters);
+
+        let mut ns = (t as f64/iters as f64);
+
+        println!("fast_do_move: {:.2} ns/iter ({:.2} iter/s)", ns, 1_000_000_000.0/ns);
+    }
+
+    #[test]
     fn test_fast_min() {
         use do_moves_fast::fast_min;
 
@@ -223,7 +253,7 @@ mod tests {
         assert!(fast_min(2,7) == 2);
     }
     
-    fn bench<F>(sample : F, iters : usize) -> u64 where F: Fn() {
+    fn bench<F>(mut sample : F, iters : usize) -> u64 where F: FnMut() {
         let now = Instant::now();
         for _ in 0..iters {
             sample();
