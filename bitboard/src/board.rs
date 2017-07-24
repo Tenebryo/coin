@@ -7,6 +7,7 @@ pub const MAX_MOVES : usize = 28;
 pub type MoveList = [Move; MAX_MOVES];
 pub type MoveOrder = [(i32, usize); MAX_MOVES];
 
+
 #[derive(Copy, Clone, PartialEq, Hash, Eq, Serialize, Deserialize)]
 pub enum Turn {
     BLACK,
@@ -95,6 +96,10 @@ impl Move {
 pub fn empty_movelist() -> MoveList {
     [Move::null(); MAX_MOVES]
 }
+#[inline]
+pub fn empty_moveorder() -> MoveOrder {
+    [(0,0); MAX_MOVES]
+}
 
 impl fmt::Display for Move {
 
@@ -136,6 +141,23 @@ impl Board {
         }
     }
 
+    pub fn from_string(data: Vec<u8>) -> Board {
+        let mut m = 1;
+        let mut ps = 0u64;
+        let mut os = 0u64;
+
+        for c in data {
+            match c as char {
+                'B' => { ps |= m;},
+                'W' => { os |= m;},
+                '\n' => {continue;},
+                _ => {},
+            }
+            m <<= 1;
+        }
+
+        Board::position(ps, os, Turn::BLACK)
+    }
 
     /// Returns a new board from a given position and current turn, represented
     /// by two 64-bit integers
