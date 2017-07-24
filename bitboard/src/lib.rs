@@ -17,6 +17,7 @@ pub use board::MoveList;
 pub use board::MoveOrder;
 pub use board::MAX_MOVES;
 pub use board::empty_movelist;
+pub use board::empty_moveorder;
 
 
 #[cfg(test)]
