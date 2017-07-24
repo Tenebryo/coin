@@ -4,6 +4,7 @@ use bitboard::Board;
 use bitboard::Move;
 use bitboard::Turn;
 use bitboard::empty_movelist;
+use bitboard::empty_moveorder;
 
 use heuristic::Heuristic;
 
@@ -14,7 +15,7 @@ use rand::Rng;
 
 const DEPTH : u8 = 3;
 
-pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut alpha : i32, mut beta : i32, depth : u8, msleft : u64) -> (Move, i32) {
+pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut alpha : i32, mut beta : i32, depth : u8, color : u8, msleft : u64) -> (Move, i32) {
     if depth <= DEPTH {
         info.check_timeout(msleft);
         if info.to {
@@ -37,7 +38,8 @@ pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut alp
     }
 
     if bb.is_done() {
-        return (Move::null(), hr.evaluate(bb, Turn::BLACK));
+        let p = bb.count_pieces();
+        return (Move::null(), (p.0 as i32 - p.1 as i32) * 10_000);
     } else if depth == 0 {
         return (Move::null(), hr.evaluate(bb, Turn::BLACK));
     }
@@ -46,36 +48,49 @@ pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut alp
     let n = bb.get_moves(&mut mvs) as usize;
 
     //order moves (random for now TODO: make history heuristic, etc)
-    info.rn.shuffle(&mut mvs[0..n]);
+    let mut order = empty_moveorder();
+    for i in 0..n {
+        order[i] = (info.hs[color as usize][mvs[i].offset() as usize], i);
+    }
+
+    order[0..n].sort();
+    order[0..n].reverse();
+
+    // info.rn.shuffle(&mut mvs[0..n]);
 
     //search
     let mut g = i32::MIN;
     let mut m = Move::null();
     {
         let mut bc = bb.copy();
-        bc.f_do_move(mvs[0]);
-        let score = -pvs(info, hr, bc, -beta, -alpha, depth-1, msleft).1;
+        bc.f_do_move(mvs[order[0].1]);
+        let score = -pvs(info, hr, bc, -beta, -alpha, depth-1, color^1, msleft).1;
 
         if info.to {
             return (Move::null(), 0);
         }
 
-        g = if g < score {m = mvs[0]; score} else {g};
+        g = if g < score {m = mvs[order[0].1]; score} else {g};
         alpha = if alpha < score {score} else {alpha};
     }
-
+    
     for i in 1..n {
-        let mut bc = bb.copy();
-        bc.f_do_move(mvs[i]);
-
-        let mut score = -pvs(info, hr, bc, -alpha-1, -alpha, depth-1, msleft).1;
-        if alpha < score && score < beta {
-            score = -pvs(info, hr, bc, -beta, -alpha, depth-1, msleft).1;
+        if alpha >= beta {
+            info.hs[color as usize][m.offset() as usize] += (depth * depth) as i32;
+            break;
         }
 
-        g = if g < score {m = mvs[i]; score} else {g};
+        let mut bc = bb.copy();
+        let mv = mvs[order[i].1];
+        bc.f_do_move(mv);
+
+        let mut score = -pvs(info, hr, bc, -alpha-1, -alpha, depth-1, color^1, msleft).1;
+        if alpha < score && score < beta {
+            score = -pvs(info, hr, bc, -beta, -alpha, depth-1, color^1, msleft).1;
+        }
+
+        g = if g < score {m = mv; score} else {g};
         alpha = if alpha < score {score} else {alpha};
-        if alpha >= beta {break;}
     }
 
     let mut low = i32::MIN;
@@ -95,7 +110,8 @@ fn pvs_no_tt<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut a
     info.sr += 1;
 
     if bb.is_done() {
-        return hr.evaluate(bb, Turn::BLACK);
+        let p = bb.count_pieces();
+        return (p.0 as i32 - p.1 as i32) * 10_000;
     } else if depth == 0 {
         return hr.evaluate(bb, Turn::BLACK);
     }
@@ -104,7 +120,7 @@ fn pvs_no_tt<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut a
     let n = bb.get_moves(&mut mvs) as usize;
 
     //order moves (random for now TODO: make history heuristic, etc)
-    info.rn.shuffle(&mut mvs[0..n]);
+    // info.rn.shuffle(&mut mvs[0..n]);
 
     //search
     let mut g = i32::MIN;
@@ -119,6 +135,8 @@ fn pvs_no_tt<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut a
     }
 
     for i in 1..n {
+        if alpha >= beta {break;}
+
         let mut bc = bb.copy();
         bc.f_do_move(mvs[i]);
 
@@ -129,38 +147,43 @@ fn pvs_no_tt<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut a
 
         g = if g < score {score} else {g};
         alpha = if alpha < score {score} else {alpha};
-        if alpha >= beta {break;}
     }
 
     g
 }
 
-pub fn pvs_id<H: Heuristic>(bb : Board, hr : &mut [H], hz : &mut H, max_depth : u8, msleft : u64) -> Move {
+pub fn pvs_id<Hf: Heuristic + Clone, Hz: Heuristic + Clone>(bb : Board, hr : &mut [Box<Hf>], hz : &mut Hz, max_depth : u8, msleft : u64) -> Move {
     use search::SearchInfo;
 
     let mut d = 5;
+    if max_depth < d {d = max_depth};
     let mut info = SearchInfo::new();
     let mut best_move = Move::null();
-    let empty = bb.get_empty();
+    let empty = bb.total_empty();
 
     eprintln!("Starting ID PVS...");
+    eprintln!("[COIN]: |{0:-<7}|{0:-<11}|{0:-<15}|{0:-<16}|{0:-<16}|{0:-<14}|", "");
     eprintln!("[COIN]: | {: <5} | {: <9} | {: <13} | {: <14} | {: <14} | {: <12} |",
             "Depth", "Best Move", "Minimax Value", "Transpositions", "Nodes Searched", "Time Elapsed");
     eprintln!("[COIN]: |{0:-<7}|{0:-<11}|{0:-<15}|{0:-<16}|{0:-<16}|{0:-<14}|", "");
-    while d < max_depth && d <= empty + 2 {
+
+    while d <= max_depth && d <= empty + 2 {
 
         info.tt.clear();
+        info.reset_history();
 
         //select heuristic
         let hi = empty as i32 - d as i32;
 
         let (m, s) = if hi <= 0 {
-            pvs(&mut info, hz, bb.copy(), i32::MIN+1, i32::MAX-1, d, msleft);
+            pvs(&mut info, hz, bb.copy(), i32::MIN+1, i32::MAX-1, d, 0, msleft)
         } else {
-            pvs(&mut info, hr[(i/3) as usize], bb.copy(), i32::MIN+1, i32::MAX-1, d, msleft);
-        }
+            pvs(&mut info, &mut (*hr[(hi/3) as usize].clone()), bb.copy(), i32::MIN+1, i32::MAX-1, d, 0, msleft)
+        };
 
         if info.to {
+            eprintln!("[COIN]: |{0:-<7}|{0:-<11}|{0:-<15}|{0:-<16}|{0:-<16}|{0:-<14}|", "");
+            eprintln!("[COIN]: TIMEOUT");
             return best_move;
         }
 
@@ -176,6 +199,7 @@ pub fn pvs_id<H: Heuristic>(bb : Board, hr : &mut [H], hz : &mut H, max_depth : 
         
         d += 2;
     }
+    eprintln!("[COIN]: |{0:-<7}|{0:-<11}|{0:-<15}|{0:-<16}|{0:-<16}|{0:-<14}|", "");
 
     best_move
 }
