@@ -22,6 +22,7 @@ pub struct SearchInfo {
     pub st  : Instant,
     pub sr  : u64, 
     pub rn  : ThreadRng,
+    pub hs  : [[i32; 64];2],
 }
 
 impl SearchInfo {
@@ -32,6 +33,16 @@ impl SearchInfo {
             st: Instant::now(),
             sr: 0,
             rn: rand::thread_rng(),
+            hs: [[
+                32,  -16, 8,  4,  4, 8, -16, 32,
+                -16, -16, 2, -2, -2, 2, -16, -16,
+                8,     2, 0,  0,  0, 0,   2, 8,
+                4,    -2, 0,  0,  0, 0,  -2, 4,
+                4,    -2, 0,  0,  0, 0,  -2, 4,
+                8,     2, 0,  0,  0, 0,   2, 8,
+                -16, -16, 2, -2, -2, 2, -16, -16,
+                32,  -16, 8,  4,  4, 8, -16, 32,
+            ];2],
         }
     }
 
@@ -43,5 +54,18 @@ impl SearchInfo {
     pub fn check_timeout(&mut self, msleft : u64) {
         use std::time::Duration;
         self.to = self.st.elapsed() >= Duration::from_millis(msleft);
+    }
+
+    pub fn reset_history(&mut self) {
+        self.hs = [[
+            32,  -16, 8,  4,  4, 8, -16, 32,
+            -16, -16, 2, -2, -2, 2, -16, -16,
+            8,     2, 0,  0,  0, 0,   2, 8,
+            4,    -2, 0,  0,  0, 0,  -2, 4,
+            4,    -2, 0,  0,  0, 0,  -2, 4,
+            8,     2, 0,  0,  0, 0,   2, 8,
+            -16, -16, 2, -2, -2, 2, -16, -16,
+            32,  -16, 8,  4,  4, 8, -16, 32,
+        ];2];
     }
 }
