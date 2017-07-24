@@ -84,7 +84,16 @@ impl Player {
         //                                 Box::new(ScaledBasicHeuristic::new(10)), 
         //                                 40, alloc_time);
 
+        // let tmp = Box::new(HandmadeHeuristic::new());
+        // let mut tmp_hr = [
+        //     tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
+        //     tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
+        //     tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
+        //     tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone()
+        // ];
+
         let mut out_move = search::pvs_id(b, &mut self.phs, &mut ScaledBasicHeuristic::new(10), 60, alloc_time);
+        // let mut out_move = search::pvs_id(b, &mut tmp_hr, &mut ScaledBasicHeuristic::new(10_000), 60, alloc_time);
 
 
         if out_move.is_null() {
