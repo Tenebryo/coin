@@ -97,7 +97,7 @@ mod tests {
         let mut mvs = empty_movelist();
         let mut b = Board::new();
 
-        for i in 0..30 {
+        for i in 0..45 {
             let n = b.get_moves(&mut mvs);
             b.f_do_move(mvs[(r.gen::<u8>() % n) as usize]);
         }

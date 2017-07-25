@@ -14,17 +14,17 @@ use rand::Rng;
 
 use rayon::prelude::*;
 
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Copy, Clone, Debug)]
 enum NodeState {
-    UNEXPLORED,     // hasn't been expanded yet
-    EXPLORED,       // already expanded
+    INVALID,        // not a valid node.
     PROVEN_WIN,     // there is at least one child that is a proven loss for the other player
     PROVEN_DRAW,    // current player can force a draw
+    EXPLORED,       // already expanded
+    UNEXPLORED,     // hasn't been expanded yet
     PROVEN_LOSS,    // every move leads to a loss for the current player
-    INVALID,        // not a valid node.
 }
 
-const EXPLORATION : f32 = 5.0;
+const EXPLORATION : f32 = 4.0;
 const SIMULATIONS_PER_NODE : i32 = 1064 * 2;
 
 /// Represents a node in the game tree that has been or is to be explored
@@ -44,11 +44,24 @@ impl SearchTreeNode {
     /// Creates a new SearchTreeNode at the given position from the board
     pub fn new(b : Board, pm : Move) -> SearchTreeNode {
         let pieces = b.pieces();
+
+        let state = if b.is_done() {
+            let c = b.count_pieces();
+            if c.0 > c.1 {
+                NodeState::PROVEN_WIN
+            } else if c.0 == c.1 {
+                NodeState::PROVEN_DRAW
+            } else {
+                NodeState::PROVEN_LOSS
+            }
+        } else {
+            NodeState::UNEXPLORED
+        };
         // TODO: add heuristic value,
         SearchTreeNode {
             children    : vec![],
             position    : Position::from_board(b),
-            state       : NodeState::UNEXPLORED,
+            state       : state,
             results     : 0,
             simulations : 1,
             child_count : 0,
@@ -130,13 +143,13 @@ impl SearchTreeNode {
     }
 
     /// Select the most promising node in the explored game tree and expand it
-    fn select_node(&mut self, sims : i32, out_tree : &mut [usize; 60], idx : usize) -> (usize, i32, i32, u32) {
+    fn select_node(&mut self, sims : i32) -> (i32, i32, u32) {
         //find best child to expand.
         //ignore solved (propagated later)
         if NodeState::UNEXPLORED == self.state {
             let (r, s, c) = self.expand();
 
-            return (idx, -r, s, c);
+            return (-r, s, c);
         }
 
         use std::f32;
@@ -157,16 +170,48 @@ impl SearchTreeNode {
         }
 
         if bi != -1 {
-            out_tree[idx] = bi as usize;
             
             // update results and simulations
-            let (i, r, s, c) = self.children[bi as usize].select_node(sims, out_tree, idx+1);
+            let (r, s, c) = self.children[bi as usize].select_node(sims);
             self.add_runs(r, s);
             self.add_children(c);
 
-            return (i, -r, s, c);
+            self.update_proven_state();
+
+            return (-r, s, c);
         } else {
+            self.update_proven_state();
+            return (0,0,0);
+            
             panic!()
+        }
+    }
+
+    /// Check children, determine if this node has a proven state, and update the state
+    fn update_proven_state(&mut self) {
+        let mut best_state = NodeState::INVALID;
+        for i in 0..(self.children.len()) {
+            if best_state < self.children[i].state {
+                best_state = self.children[i].state;
+            }
+        }
+
+        match best_state {
+            NodeState::PROVEN_LOSS => {
+                // if there is a proven loss for the opponent, this move is a proven win
+                self.state = NodeState::PROVEN_WIN;
+            },
+            NodeState::PROVEN_DRAW => {
+                // if the best is a proven draw (this implies that there are no unproven branches left)
+                // then this node is also a proven draw
+                self.state = NodeState::PROVEN_DRAW;
+            },
+            NodeState::PROVEN_WIN => {
+                // if the best state is a proven win, then this node is a proven loss for the current player
+                self.state = NodeState::PROVEN_LOSS;
+            },
+            //no other states matter:
+            _ => {}
         }
     }
 
@@ -185,7 +230,7 @@ impl SearchTreeNode {
     fn search(&mut self) {
         let s = self.simulations;
         let mut tmp = [0; 60];
-        self.select_node(s, &mut tmp, 0);
+        self.select_node(s);
 
         // for i in tmp[0..60].iter() {
         //     eprint!("{} ", i);
@@ -271,6 +316,14 @@ impl MonteCarloSearch {
 
         while start.elapsed() < Duration::from_millis(msleft) {
             self.root_node.search();
+
+            match self.root_node.state {
+                NodeState::PROVEN_DRAW | NodeState::PROVEN_WIN | NodeState::PROVEN_LOSS => {
+                    eprintln!("[COIN]: Game Tree Solved!");
+                    break;
+                },
+                _ => {}
+            }
         }
 
         eprintln!("[COIN]: Searched {} Nodes with {} Simulations",
@@ -289,10 +342,11 @@ impl MonteCarloSearch {
         for i in 1..n {
             let sc = self.root_node.children[i].simulations;
 
-            eprintln!("{}, {}, {}", 
+            eprintln!("{}, {}, {}, {:?}", 
                 self.root_node.children[i].prev_move,
                 self.root_node.children[i].get_score(sims),
-                self.root_node.children[i].simulations
+                self.root_node.children[i].simulations,
+                self.root_node.children[i].state
             );
             if sc > bs {
                 bi = i;
