@@ -101,5 +101,5 @@ fn main() {
         cerrln!("\n{}", b);
     }
     
-    cerrln!("RESULT: {}/{}", b.count_pieces().0, b.count_pieces().1);
+    cerrln!("RESULT: {}/{}", b.count_pieces().1, b.count_pieces().0);
 }

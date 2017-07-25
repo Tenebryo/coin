@@ -25,7 +25,7 @@ enum NodeState {
 }
 
 const EXPLORATION : f32 = 4.0;
-const SIMULATIONS_PER_NODE : i32 = 1064 * 2;
+const SIMULATIONS_PER_NODE : i32 = 1064/8;
 
 /// Represents a node in the game tree that has been or is to be explored
 #[derive(Clone, PartialEq)]
@@ -114,7 +114,7 @@ impl SearchTreeNode {
             let mut r = 0;
 
             //simulate 1000 games
-            let mut s = 1000;
+            let mut s = SIMULATIONS_PER_NODE;
             while s != 0 {
                 r += fast_simulate(bc.copy());
                 s -= 1;
@@ -319,7 +319,7 @@ impl MonteCarloSearch {
 
             match self.root_node.state {
                 NodeState::PROVEN_DRAW | NodeState::PROVEN_WIN | NodeState::PROVEN_LOSS => {
-                    eprintln!("[COIN]: Game Tree Solved!");
+                    eprintln!("[COIN]: Game Tree Solved: {:?}", self.root_node.state);
                     break;
                 },
                 _ => {}
@@ -337,20 +337,25 @@ impl MonteCarloSearch {
         let n = b.get_moves(&mut mvs) as usize;
 
         let mut bi = 0;
-        let mut bs = self.root_node.children[0].simulations;
+        let mut bs = 0;
 
-        for i in 1..n {
+        for i in 0..n {
             let sc = self.root_node.children[i].simulations;
 
-            eprintln!("{}, {}, {}, {:?}", 
-                self.root_node.children[i].prev_move,
-                self.root_node.children[i].get_score(sims),
-                self.root_node.children[i].simulations,
-                self.root_node.children[i].state
-            );
+            // eprintln!("{}, {}, {}, {:?}", 
+            //     self.root_node.children[i].prev_move,
+            //     self.root_node.children[i].get_score(sims),
+            //     self.root_node.children[i].simulations,
+            //     self.root_node.children[i].state
+            // );
             if sc > bs {
                 bi = i;
                 bs = sc;
+            }
+
+            if self.root_node.children[i].state == NodeState::PROVEN_LOSS {
+                //if the opponent has a proven loss, take it!
+                return mvs[i];
             }
         }
 

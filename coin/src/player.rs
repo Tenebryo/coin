@@ -9,6 +9,7 @@ use bitboard::Turn;
 use bitboard::empty_movelist;
 use search::mtdf_id_timeout;
 use search::NegamaxSearch;
+use search::MonteCarloSearch;
 use search;
 
 use std::path::Path;
@@ -19,6 +20,7 @@ use std::time::Instant;
 pub struct Player {
     phs     : [Box<PatternHeuristic>; 20],
     //phs     : [BasicHeuristic; 20],
+    mcts    : MonteCarloSearch,
 }
 
 const time_alloc : [f32; 64] = [
@@ -67,6 +69,7 @@ impl Player {
                 // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e55-57.json"))),
                 // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e58-60.json")))
             ],
+            mcts    : MonteCarloSearch::new(),
         }
     }
     
@@ -92,8 +95,11 @@ impl Player {
         //     tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone()
         // ];
 
-        let mut out_move = search::pvs_id(b, &mut self.phs, &mut ScaledBasicHeuristic::new(10), 60, alloc_time);
-        // let mut out_move = search::pvs_id(b, &mut tmp_hr, &mut ScaledBasicHeuristic::new(10_000), 60, alloc_time);
+        // let mut out_move = search::pvs_id(b, &mut self.phs, &mut ScaledBasicHeuristic::new(10), 60, alloc_time);
+        // // let mut out_move = search::pvs_id(b, &mut tmp_hr, &mut ScaledBasicHeuristic::new(10_000), 60, alloc_time);
+
+
+        let mut out_move = self.mcts.search_for_millis(b, alloc_time);
 
 
         if out_move.is_null() {

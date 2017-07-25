@@ -463,6 +463,37 @@ impl Board {
 impl fmt::Display for Board {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut err = write!(f, "  A B C D E F G H\n");
+        
+        for y in 0..8 {
+            let mut t = err.and(write!(f, "{}", y+1));
+            err = t;
+            for x in 0..8 {
+                let m = Move::new(x,y).mask();
+                let e = err.and(
+                    if self.ps & m != 0 {
+                        write!(f, " @")
+                    } else if self.os & m != 0 {
+                        write!(f, " O")
+                    } else {
+                        write!(f, "  ")
+                    }
+                );
+                err = e;
+            }
+            
+            t = err.and(write!(f, "\n"));
+            
+            err = t;
+        }
+        
+        err
+    }
+}
+
+impl fmt::Debug for Board {
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut err = write!(f, "  A B C D E F G H | A B C D E F G H | A B C D E F G H\n");
         
         for y in 0..8 {
