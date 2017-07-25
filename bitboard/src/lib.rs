@@ -11,6 +11,7 @@ mod find_moves_fast;
 mod do_moves_fast;
 
 pub use board::Board;
+pub use board::Position;
 pub use board::Turn;
 pub use board::Move;
 pub use board::MoveList;
@@ -220,13 +221,19 @@ mod tests {
         let mut test_fn = || {
             let mut b = Board::new();
             
-            while !b.is_done() {
-                let mut mvs = empty_movelist();
-                
+            let mut mvs = empty_movelist();
+            let mut e = b.total_empty();
+            let mut r = rand::thread_rng();
+
+            while e > 0 {
                 let n = b.get_moves(&mut mvs);
-
                 b.do_move(mvs[(rands[i] % n) as usize]);
-
+                e -= 1;
+                i += 1;
+            }
+            while !b.is_done() {
+                let n = b.get_moves(&mut mvs);
+                b.do_move(mvs[(rands[i] % n) as usize]);
                 i += 1;
             }
         };

@@ -543,7 +543,24 @@ impl fmt::Display for Board {
     }
 }
 
+#[derive(PartialEq, Eq, Copy, Clone)]
+pub struct Position {
+    ps : u64,
+    os : u64,
+}
 
+impl Position {
+    pub fn from_board(b : Board) -> Position {
+        Position {
+            ps : b.ps,
+            os : b.os,
+        }
+    }
+
+    pub fn to_board(&self) -> Board {
+        Board::position(self.ps, self.os, Turn::BLACK)
+    }
+}
 
 
 
