@@ -46,6 +46,12 @@ impl SearchInfo {
         }
     }
 
+    pub fn from_start(start : Instant) -> SearchInfo {
+        let mut tmp = SearchInfo::new();
+        tmp.st = start;
+        tmp
+    }
+
     pub fn set_start(&mut self) {
         self.st = Instant::now();
     }

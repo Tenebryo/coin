@@ -99,14 +99,17 @@ impl Player {
         // // let mut out_move = search::pvs_id(b, &mut tmp_hr, &mut ScaledBasicHeuristic::new(10_000), 60, alloc_time);
 
 
-        let mut out_move = self.mcts.search_for_millis(b, alloc_time);
+        //let mut out_move = self.mcts.search_for_millis(b, alloc_time);
 
+        let mut out_move = search::jamboree_id(b, &mut self.phs, &mut ScaledBasicHeuristic::new(10), 60, alloc_time);
 
         if out_move.is_null() {
             let mut ml = empty_movelist();
-            b.get_moves(&mut ml);
+            let n = b.get_moves(&mut ml) as usize;
 
-            out_move = ml[0];
+            use rand;
+            use rand::Rng;
+            out_move = ml[rand::thread_rng().gen::<usize>()%n];
         }
 
         out_move

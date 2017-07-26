@@ -15,7 +15,7 @@ use rand::Rng;
 
 const DEPTH : u8 = 3;
 
-pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut alpha : i32, mut beta : i32, depth : u8, color : u8, msleft : u64) -> (Move, i32) {
+pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &H, bb : Board, mut alpha : i32, mut beta : i32, depth : u8, color : u8, msleft : u64) -> (Move, i32) {
     if depth <= DEPTH {
         info.check_timeout(msleft);
         if info.to {
@@ -39,7 +39,8 @@ pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut alp
 
     if bb.is_done() {
         let p = bb.count_pieces();
-        return (Move::null(), (p.0 as i32 - p.1 as i32) * 10_000);
+        // return (Move::null(), (p.0 as i32 - p.1 as i32) * 10_000);
+        return (Move::null(), (p.0 as i32 - p.1 as i32).signum()*100_000);
     } else if depth == 0 {
         return (Move::null(), hr.evaluate(bb, Turn::BLACK));
     }
@@ -105,13 +106,14 @@ pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut alp
     (m, g)
 }
 
-fn pvs_no_tt<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut alpha : i32, beta : i32, depth : u8) -> i32 {
+fn pvs_no_tt<H: Heuristic>(info : &mut SearchInfo, hr: &H, bb : Board, mut alpha : i32, beta : i32, depth : u8) -> i32 {
     
     info.sr += 1;
 
     if bb.is_done() {
         let p = bb.count_pieces();
-        return (p.0 as i32 - p.1 as i32) * 10_000;
+        //return (p.0 as i32 - p.1 as i32) * 10_000;
+        return (p.0 as i32 - p.1 as i32).signum()*100_000;
     } else if depth == 0 {
         return hr.evaluate(bb, Turn::BLACK);
     }
@@ -152,7 +154,7 @@ fn pvs_no_tt<H: Heuristic>(info : &mut SearchInfo, hr: &mut H, bb : Board, mut a
     g
 }
 
-pub fn pvs_id<Hf: Heuristic + Clone, Hz: Heuristic + Clone>(bb : Board, hr : &mut [Box<Hf>], hz : &mut Hz, max_depth : u8, msleft : u64) -> Move {
+pub fn pvs_id<Hf: Heuristic + Clone, Hz: Heuristic + Clone>(bb : Board, hr : &[Box<Hf>], hz : &Hz, max_depth : u8, msleft : u64) -> Move {
     use search::SearchInfo;
 
     let mut d = 5;

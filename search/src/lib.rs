@@ -9,6 +9,7 @@ mod transposition;
 mod search;
 mod monte_carlo;
 mod pvs;
+mod jamboree;
 
 pub use negamax_ab_timeout::NegamaxSearch;
 pub use mtdf_id_timeout::{mtdf_timeout, mtdf_id_timeout};
@@ -18,6 +19,9 @@ pub use pvs::pvs_id;
 pub use search::Search;
 pub use search::SearchInfo;
 pub use monte_carlo::MonteCarloSearch;
+
+pub use jamboree::jamboree_id;
+pub use jamboree::JamboreeSearchInfo;
 
 #[cfg(test)]
 mod tests {
@@ -76,7 +80,7 @@ mod tests {
     fn rayon_test() {
         use rayon::prelude::*;
 
-        let data = (0..100u64).collect::<Vec<_>>();
+        let data = (0..10u64).collect::<Vec<_>>();
 
         let s = data.par_iter().map(|x| {
             eprintln!("B: {}", x);
@@ -86,6 +90,11 @@ mod tests {
         for i in s {
             eprintln!("A: {}", i);
         }
+
+
+        data.par_iter()
+            .map(|x| {eprintln!("B: {}", x); x} )
+            .map(|x| {eprintln!("A: {}", x); x} ).collect::<Vec<_>>();
     }
 
     #[test]
@@ -103,6 +112,37 @@ mod tests {
         }
 
         let res = mcts.search_for_millis(b, 10000);
+
+        eprintln!("{}", b);
+    }
+
+    #[test]
+    fn jamboree_test() {
+        use ::jamboree_id;
+        use heuristic::ScaledBasicHeuristic;
+        use heuristic::WLDHeuristic;
+
+        let tmp = Box::new(WLDHeuristic::new());
+        let mut tmp_hr = [
+            tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
+            tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
+            tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
+            tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone()
+        ];
+
+        let mut r = rand::thread_rng();
+
+        let mut mvs = empty_movelist();
+        let mut b = Board::new();
+
+        for i in 0..41 {
+            let n = b.get_moves(&mut mvs);
+            b.f_do_move(mvs[(r.gen::<u8>() % n) as usize]);
+        }
+
+        eprintln!("{}", b);
+
+        let res = jamboree_id(b, &tmp_hr, &WLDHeuristic::new(), 60, 30000);
 
         eprintln!("{}", b);
     }

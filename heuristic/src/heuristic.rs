@@ -20,16 +20,16 @@ use serde_json;
 use rand;
 use rand::Rng;
 
-pub trait Heuristic : Sized {
+pub trait Heuristic : Sized + Send + Sync + Clone {
     /// Evaluates the value of the given board on the turn of a given player.
     /// A board equal to a draw should evaluate to 0, positive for positions 
     /// that favor Black, and negative for positions that favor white. The
     /// magnitude of the score should reflect how favorable the position is.
-    fn evaluate(&mut self, b : Board, t : Turn) -> i32;
+    fn evaluate(&self, b : Board, t : Turn) -> i32;
     
     /// Orders moves based on how likely they are to be good moves, in order to
     /// speed up search algorithms.
-    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder);
+    fn order_moves(&self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder);
 }
 ///Very basic hueristic only counts discs
 #[derive(Clone)]
@@ -43,12 +43,12 @@ impl BasicHeuristic {
 }
 
 impl Heuristic for BasicHeuristic {
-    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
+    fn evaluate(&self, b : Board, t : Turn) -> i32 {
         let pieces = b.count_pieces();
         pieces.0 as i32 - pieces.1 as i32
     }
     
-    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+    fn order_moves(&self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
     
     }
 }
@@ -65,12 +65,12 @@ impl ScaledBasicHeuristic {
 }
 
 impl Heuristic for ScaledBasicHeuristic {
-    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
+    fn evaluate(&self, b : Board, t : Turn) -> i32 {
         let pieces = b.count_pieces();
         (pieces.0 as i32 - pieces.1 as i32) * self.scale
     }
     
-    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+    fn order_moves(&self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
     
     }
 }
@@ -88,7 +88,7 @@ impl WLDHeuristic {
 
 impl Heuristic for WLDHeuristic {
 
-    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
+    fn evaluate(&self, b : Board, t : Turn) -> i32 {
         let pieces = b.count_pieces();
         let df = (pieces.0 as i8) - (pieces.1 as i8);
         if df > 0 {
@@ -102,7 +102,7 @@ impl Heuristic for WLDHeuristic {
     
     
     
-    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+    fn order_moves(&self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
     
     }
 }
@@ -156,12 +156,12 @@ impl PatternHeuristic {
 }
 
 impl Heuristic for PatternHeuristic {
-    fn evaluate(&mut self, b : Board, t : Turn) -> i32 {
+    fn evaluate(&self, b : Board, t : Turn) -> i32 {
         let p = b.pieces();
         self.ps.eval(p.0, p.1) as i32
     }
     
-    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+    fn order_moves(&self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
     
     }
 }
@@ -182,7 +182,7 @@ impl HandmadeHeuristic {
 
 impl Heuristic for HandmadeHeuristic {
 
-    fn evaluate(&mut self, bb : Board, t : Turn) -> i32 {
+    fn evaluate(&self, bb : Board, t : Turn) -> i32 {
     
         /*
            A   B   C   D   E   F   G   H
@@ -310,7 +310,7 @@ impl Heuristic for HandmadeHeuristic {
         score
     }
     
-    fn order_moves(&mut self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+    fn order_moves(&self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
     
     }
 }
