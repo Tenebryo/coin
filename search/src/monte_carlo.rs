@@ -229,13 +229,22 @@ impl SearchTreeNode {
     /// Does an iteration of Monte Carlo Tree search
     fn search(&mut self) {
         let s = self.simulations;
-        let mut tmp = [0; 60];
         self.select_node(s);
 
-        // for i in tmp[0..60].iter() {
-        //     eprint!("{} ", i);
-        // }
-        // eprintln!("");
+    }
+
+    fn par_search(&mut self) {
+        let s = self.simulations;
+        let (r, s, c) = self.children.par_iter_mut().map( |c| {
+            c.select_node(s)
+        }).collect::<Vec<_>>().iter().fold((0, 0, 0), |(ra, sa, ca), &(r,s,c)| {
+            (ra + r, sa + s, ca + c)
+        });
+
+        self.add_runs(r,s);
+        self.add_children(c);
+
+        self.update_proven_state();
     }
 }
 
@@ -243,7 +252,7 @@ fn fast_simulate(mut b : Board) -> i32 {
     use std::i32;
 
     let mut mvs = empty_movelist();
-    let mut e = b.total_empty();
+    let mut e = b.total_empty()+2;
     let mut r = rand::thread_rng();
     let mut c = 1;
 
@@ -251,11 +260,6 @@ fn fast_simulate(mut b : Board) -> i32 {
         let n = b.get_moves(&mut mvs);
         b.f_do_move(mvs[(r.gen::<u8>() % n) as usize]);
         e -= 1;
-        c = -c;
-    }
-    while !b.is_done() {
-        let n = b.get_moves(&mut mvs);
-        b.f_do_move(mvs[(r.gen::<u8>() % n) as usize]);
         c = -c;
     }
 
@@ -316,6 +320,8 @@ impl MonteCarloSearch {
 
         while start.elapsed() < Duration::from_millis(msleft) {
             self.root_node.search();
+            self.root_node.search();
+            self.root_node.par_search();
 
             match self.root_node.state {
                 NodeState::PROVEN_DRAW | NodeState::PROVEN_WIN | NodeState::PROVEN_LOSS => {
@@ -330,8 +336,11 @@ impl MonteCarloSearch {
             self.root_node.child_count,
             self.root_node.simulations
         );
-
-        let sims = self.root_node.simulations;
+        let elapsed = {
+            let d = start.elapsed();
+            (d.as_secs() as f32) + (d.subsec_nanos() as f32)/1_000_000_000f32
+        };
+        eprintln!("[COIN]: Time elapsed: {} ({:.2} sims/s)", elapsed, self.root_node.simulations as f32 / elapsed);
 
         let mut mvs = empty_movelist();
         let n = b.get_moves(&mut mvs) as usize;
@@ -339,23 +348,18 @@ impl MonteCarloSearch {
         let mut bi = 0;
         let mut bs = 0;
 
+        //check which node seems best
         for i in 0..n {
-            let sc = self.root_node.children[i].simulations;
-
-            // eprintln!("{}, {}, {}, {:?}", 
-            //     self.root_node.children[i].prev_move,
-            //     self.root_node.children[i].get_score(sims),
-            //     self.root_node.children[i].simulations,
-            //     self.root_node.children[i].state
-            // );
-            if sc > bs {
-                bi = i;
-                bs = sc;
-            }
-
             if self.root_node.children[i].state == NodeState::PROVEN_LOSS {
                 //if the opponent has a proven loss, take it!
                 return mvs[i];
+            }
+
+            let sc = self.root_node.children[i].simulations;
+
+            if sc > bs {
+                bi = i;
+                bs = sc;
             }
         }
 
