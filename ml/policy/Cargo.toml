@@ -1,0 +1,9 @@
+[package]
+name = "policy"
+version = "0.1.0"
+authors = ["Sam Blazes <sblazes@caltech.edu>"]
+
+[dependencies]
+tensorflow = "0.4.0"
+bitboard = {path = "../../bitboard"}
+rand = "0.3.0"
