@@ -1,12 +1,14 @@
-use std::collections::BTreeSet;
 use std::collections::HashMap;
+use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering::SeqCst;
 
 use bitboard::Board;
 use std::i32;
 
 type Position = (u64, u64);
 
-type ZobristHash = u32; //zobrist hash type
+type ZobristHash = u32;
 
 type Usage = (usize, ZobristHash); //age then zobrist hash
 
@@ -34,17 +36,104 @@ fn position(b : Board) -> Position {
     b.pieces()
 }
 
+const DEFAULT_VALUE : (i32, i32) = (i32::MIN, i32::MAX);
 
-///Transposition table. Currently maintains a maximum size by removing the oldest
+// ///Transposition table. Currently maintains a maximum size by removing the oldest
+// ///key when overflow occurs. This could be changed to remove a random key or
+// ///perhaps the least used key.
+// pub struct TranspositionTable {
+//     entries     : HashMap<ZobristHash, (Position, i32, i32)>,
+//     size        : usize,
+//     age         : usize,
+// }
+
+
+// impl TranspositionTable {
+    
+//     ///Creates a new transpotion table with a given maximum size
+//     ///
+//     pub fn new(max_size : usize) -> TranspositionTable {
+//         TranspositionTable {
+//             entries     : HashMap::new(),
+//             size        : if max_size <= 0 {1} else {max_size},
+//             age         : 0,
+//         }
+//     }
+    
+//     ///Inserts or updates 
+//     pub fn update(&mut self, b : Board, low : i32, high : i32) {
+//         let zob = zobrist(b);
+//         let pos = position(b);
+        
+//         if self.entries.contains_key(&zob) {
+//             //overwrite the old entry, because we have a new one
+//             let mut e = self.entries.entry(zob).or_insert((pos, low, high));
+//             *e = (pos, low, high);
+//             return;
+//         }
+        
+//         if self.size <= 0 {
+//             //No more space, need to remove a random key to insert new one.
+//             //in this case the size doesn't change
+//             let (&key,_) = self.entries.iter().next().unwrap();
+//             self.entries.remove(&key);
+            
+//         } else {
+//             //If there is space in the table, the remaining space will decrease.
+//             self.size -= 1;
+//         }
+        
+//         //insert bound information
+//         self.entries.insert(zob, (pos,low,high));
+        
+//         //age increases
+//         self.age += 1;
+//     }
+    
+//     ///Gets the bound information for a board.
+//     pub fn fetch(&self, b : Board) -> (i32, i32) {
+//         let zob = zobrist(b);
+//         if self.entries.contains_key(&zob) {
+//             let pos = position(b);
+            
+//             //should never panic on this unwrap.
+//             let &(p, low, high) = self.entries.get(&zob).unwrap();
+            
+//             //only fetch if it is actually the correct board stored here and not
+//             //a hash collision.
+//             if p == pos {
+//                 (low, high)
+//             } else {
+//                 DEFAULT_VALUE
+//             }
+//         } else {
+//             DEFAULT_VALUE
+//         }
+//     }
+    
+    
+//     ///Clears all entries from the table
+//     pub fn clear(&mut self) {
+//         self.size += self.entries.len();
+//         self.entries.clear();
+//         self.age = 0;
+//     }
+    
+    
+//     ///Returns the number of entries stored in the table.
+//     pub fn size(&self) -> usize {
+//         self.entries.len()
+//     }
+// }
+
+///Parallel Transposition table. Currently maintains a maximum size by removing the oldest
 ///key when overflow occurs. This could be changed to remove a random key or
 ///perhaps the least used key.
 pub struct TranspositionTable {
-    entries     : HashMap<ZobristHash, (Position, i32, i32)>,
-    size        : usize,
-    age         : usize,
+    entries     : Mutex<HashMap<ZobristHash, (Position, i32, i32)>>,
+    size        : AtomicUsize,
+    age         : AtomicUsize,
 }
-
-const DEFAULT_VALUE : (i32, i32) = (i32::MIN, i32::MAX);
 
 impl TranspositionTable {
     
@@ -52,50 +141,55 @@ impl TranspositionTable {
     ///
     pub fn new(max_size : usize) -> TranspositionTable {
         TranspositionTable {
-            entries     : HashMap::new(),
-            size        : if max_size <= 0 {1} else {max_size},
-            age         : 0,
+            entries     : Mutex::new(HashMap::new()),
+            size        : AtomicUsize::new(if max_size <= 0 {1} else {max_size}),
+            age         : AtomicUsize::new(0),
         }
     }
     
     ///Inserts or updates 
-    pub fn update(&mut self, b : Board, low : i32, high : i32) {
+    pub fn update(&self, b : Board, low : i32, high : i32) {
+
+        let mut entries = self.entries.lock().unwrap();
+
         let zob = zobrist(b);
         let pos = position(b);
         
-        if self.entries.contains_key(&zob) {
+        if entries.contains_key(&zob) {
             //overwrite the old entry, because we have a new one
-            let mut e = self.entries.entry(zob).or_insert((pos, low, high));
+            let mut e = entries.entry(zob).or_insert((pos, low, high));
             *e = (pos, low, high);
             return;
         }
         
-        if self.size <= 0 {
+        if self.size.load(SeqCst) <= 0 {
             //No more space, need to remove a random key to insert new one.
             //in this case the size doesn't change
-            let (&key,_) = self.entries.iter().next().unwrap();
-            self.entries.remove(&key);
+            let (&key,_) = entries.iter().next().unwrap();
+            entries.remove(&key);
             
         } else {
             //If there is space in the table, the remaining space will decrease.
-            self.size -= 1;
+            self.size.fetch_sub(1, SeqCst);
         }
         
         //insert bound information
-        self.entries.insert(zob, (pos,low,high));
+        entries.insert(zob, (pos,low,high));
         
         //age increases
-        self.age += 1;
+        self.age.fetch_add(1, SeqCst);
     }
     
     ///Gets the bound information for a board.
     pub fn fetch(&self, b : Board) -> (i32, i32) {
+        let entries = self.entries.lock().unwrap();
+
         let zob = zobrist(b);
-        if self.entries.contains_key(&zob) {
+        if entries.contains_key(&zob) {
             let pos = position(b);
             
             //should never panic on this unwrap.
-            let &(p, low, high) = self.entries.get(&zob).unwrap();
+            let &(p, low, high) = entries.get(&zob).unwrap();
             
             //only fetch if it is actually the correct board stored here and not
             //a hash collision.
@@ -111,30 +205,61 @@ impl TranspositionTable {
     
     
     ///Clears all entries from the table
-    pub fn clear(&mut self) {
-        self.size += self.entries.len();
-        self.entries.clear();
-        self.age = 0;
+    pub fn clear(&self) {
+        let mut entries = self.entries.lock().unwrap();
+
+        self.size.fetch_add(entries.len(), SeqCst);
+        entries.clear();
+        self.age.store(0, SeqCst);
     }
     
     
     ///Returns the number of entries stored in the table.
     pub fn size(&self) -> usize {
-        self.entries.len()
+        self.entries.lock().unwrap().len()
     }
 }
 
-#[cfg(tests)]
-mod tests {
+// #[test]
+// fn perf_transposition_table() {
+//     use std::time::Instant;
+//     use std::time::Duration;
+    
+//     let iters = 10000usize;
 
-    #[test]
-    fn table_insert() {
-        let mut t = TranspositionTable::new(3);
-        let mut b0 = Board::new();
-        let mut b1 = b0;
-        //b1.do_move();
-    }
-}
+//     let mut tt = TranspositionTable::new(2000000);
+
+//     let b = Board::new();
+
+//     let s = Instant::now();
+//     for _ in 0..iters {
+//         tt.update(b, 0, 100000);
+//     }
+//     let t = s.elapsed();
+
+//     eprintln!("SEQ: {:?}/{}", t, iters);
+// }
+
+// #[test]
+// fn perf_transposition_table_par() {
+
+//     use std::time::Instant;
+//     use std::time::Duration;
+    
+//     let iters = 10000usize;
+
+//     let mut tt = ParTranspositionTable::new(2000000);
+
+//     let b = Board::new();
+
+//     let s = Instant::now();
+//     for _ in 0..iters {
+//         tt.update(b, 0, 100000);
+//     }
+//     let tm = s.elapsed();
+
+//     eprintln!("PAR: {:?}/{}", tm, iters);
+// }
 
 const ZOBRIST_BITS : [[u32; 3]; 64] = [
     [0b01000101011110010011101011111001u32, 0b00111000111010010110011001110110u32, 0b00011111100111001001101000000000u32],

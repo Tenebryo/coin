@@ -120,8 +120,8 @@ fn main() {
             (about: "Generates training data and trains pattern heuristics on it.")
             (@arg POSITIONS: -p --positions +takes_value "Sets the number of training positions to generate per pattern set (Default 1000).")
             (@arg MAX_EPOCHS: -e --max-epochs +takes_value "Sets the maximum number of epochs to train a pattern for (Default 100).")
+            (@arg LEARNING_RATE: -l --learning-rate +takes_value "Sets the learning rate (Default 0.001).")
             (@arg COST_CUTOFF: -c --cost-cutoff +takes_value "Sets the point for the average training cost below which training stops (Default 400.0).")
-            //(@arg MASK_FILE: -m --masks +takes_value "A JSON file that contains a list of patterns to use (Default masks exist).")
             (@arg OUTPUT_FOLDER: +required "The location pattern files and training data sets are written to (40 files will be written here, so an empty or non-existent directory is ideal).")
         ).get_matches();
 
@@ -140,5 +140,8 @@ fn main() {
     let cost_cutoff = matches.value_of("COST_CUTOFF").unwrap_or("400.0");
     let cost_cutoff = cost_cutoff.parse::<f32>().unwrap_or_else(|_| panic!("Cost cutoff must be a positive number!"));
 
-    autotrain_20(&output, positions, cost_cutoff, max_epochs, &masks);
+    let learning_rate = matches.value_of("LEARNING_RATE").unwrap_or("0.001");
+    let learning_rate = learning_rate.parse::<f32>().unwrap_or_else(|_| panic!("Learning rate must be a positive number!"));
+
+    autotrain_20(&output, positions, cost_cutoff, max_epochs, learning_rate, &masks);
 }

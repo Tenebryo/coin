@@ -27,6 +27,7 @@ pub fn autotrain_20(
     data_set    : usize, 
     cost_bound  : f32, 
     epoch_cap   : usize, 
+    eta         : f32,
     masks       : &Vec<u64>
 ) -> [PatternSet; 20] {
 
@@ -80,6 +81,8 @@ pub fn autotrain_20(
                 //write file to disk
                 let serial = serialize(&training_set, Infinite)
                     .unwrap_or_else(|_| panic!(format!("LINE: {}",line!())));
+                
+                eprintln!("{:?}", ts_path);
                 File::create(ts_path).unwrap().write_all(&serial[..])
                     .unwrap_or_else(|_| panic!(format!("LINE: {}",line!())));
             }
@@ -107,11 +110,13 @@ pub fn autotrain_20(
                     let mut ps = PatternSet::from_masks(&masks[..]);
 
                     let mut epochs = 0;
+                    let mut teta = eta;
                     while epochs < epoch_cap && 
-                        train_pattern(&mut ps, 5, epochs, 100, &training_set, 
-                                    0.0005) > cost_bound {
+                        train_pattern(&mut ps, 5, epochs, 10, &training_set, 
+                                    teta) > cost_bound {
 
                         epochs += 5;
+                        teta *= 0.95;
                     }
 
                     //write file to disk

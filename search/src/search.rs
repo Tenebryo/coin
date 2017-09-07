@@ -17,7 +17,6 @@ pub trait Search<H : Heuristic> {
 }
 
 pub struct SearchInfo {
-    pub tt  : TranspositionTable,
     pub to  : bool,
     pub st  : Instant,
     pub sr  : u64, 
@@ -28,7 +27,6 @@ pub struct SearchInfo {
 impl SearchInfo {
     pub fn new() -> SearchInfo {
         SearchInfo {
-            tt: TranspositionTable::new(20_000_000),
             to: false,
             st: Instant::now(),
             sr: 0,

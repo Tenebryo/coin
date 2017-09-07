@@ -10,6 +10,7 @@ use bitboard::empty_movelist;
 use search::mtdf_id_timeout;
 use search::NegamaxSearch;
 use search::MonteCarloSearch;
+use search::ParMonteCarloSearch;
 use search;
 
 use std::path::Path;
@@ -21,6 +22,7 @@ pub struct Player {
     phs     : [Box<PatternHeuristic>; 20],
     //phs     : [BasicHeuristic; 20],
     mcts    : MonteCarloSearch,
+    pmcts   : ParMonteCarloSearch,
 }
 
 const time_alloc : [f32; 64] = [
@@ -70,6 +72,7 @@ impl Player {
                 // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e58-60.json")))
             ],
             mcts    : MonteCarloSearch::new(),
+            pmcts   : ParMonteCarloSearch::new(),
         }
     }
     
@@ -100,8 +103,9 @@ impl Player {
 
 
         //let mut out_move = self.mcts.search_for_millis(b, alloc_time);
+        let mut out_move = self.pmcts.search_for_millis(b, alloc_time);
 
-        let mut out_move = search::jamboree_id(b, &mut self.phs, &mut ScaledBasicHeuristic::new(10), 60, alloc_time);
+        //let mut out_move = search::jamboree_id(b, &self.phs, &ScaledBasicHeuristic::new(10), 60, alloc_time);
 
         if out_move.is_null() {
             let mut ml = empty_movelist();

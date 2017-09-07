@@ -33,7 +33,7 @@ fn get_random_position(empty : u8) -> Board {
 
         let m = mvl[rng.gen::<usize>() % n as usize];
 
-        b.do_move(m);
+        b.f_do_move(m);
     }
     b
 }
@@ -44,7 +44,8 @@ pub fn generate_positions<H: 'static + Heuristic + Clone + Send>(
     positions_per_thread    : usize, 
     positions               : &mut Vec<TrainingPosition>,
     heuristic               : &mut H,
-    empty                   : u8,
+    empty_min               : u8,
+    empty_max               : u8,
     step                    : u8,
 ) {
     let mut rng = rand::thread_rng();
@@ -68,11 +69,12 @@ pub fn generate_positions<H: 'static + Heuristic + Clone + Send>(
 
             println!("Thread {} starting...", t);
             let mut ng = NegamaxSearch::new(Box::new(heuristic), Instant::now());
+            let mut rng = rand::thread_rng();
 
             for i in 0..positions_per_thread {
 
                 ng.clear_transpositions();
-                let mut p = get_random_position(empty);
+                let mut p = get_random_position(rng.gen_range::<u8>(empty_min, empty_max));
 
                 let mut m = Move::null();
 
@@ -81,7 +83,9 @@ pub fn generate_positions<H: 'static + Heuristic + Clone + Send>(
 
                 //positions.push((p1, score as i16, m));
 
-                ctx.send(TrainingPosition::new(p, m, score as i16)).unwrap();
+                if Err(e) = ctx.send(TrainingPosition::new(p, m, score as i16)) {
+                    break;
+                }
                 //println!("{}", p1);
             }
             threads_running.fetch_sub(1, Ordering::SeqCst);
@@ -95,10 +99,11 @@ pub fn generate_positions<H: 'static + Heuristic + Clone + Send>(
         
 
         if i % 1000 == 0 {
-            println!("Finished {: >10} positions.", i);
+            print!("Finished {: >10} positions.\r", i);
         }
         
         positions.push(t);
         i+=1;
     }
+    println!("");
 }

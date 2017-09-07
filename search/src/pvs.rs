@@ -1,4 +1,5 @@
 use SearchInfo;
+use TranspositionTable;
 
 use bitboard::Board;
 use bitboard::Move;
@@ -13,9 +14,9 @@ use std::time::Instant;
 
 use rand::Rng;
 
-const DEPTH : u8 = 3;
+const DEPTH : u8 = 4;
 
-pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &H, bb : Board, mut alpha : i32, mut beta : i32, depth : u8, color : u8, msleft : u64) -> (Move, i32) {
+pub fn pvs<H: Heuristic>(info : &mut SearchInfo, tt : &TranspositionTable, hr: &H, bb : Board, mut alpha : i32, mut beta : i32, depth : u8, color : u8, msleft : u64) -> (Move, i32) {
     if depth <= DEPTH {
         info.check_timeout(msleft);
         if info.to {
@@ -28,7 +29,7 @@ pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &H, bb : Board, mut alpha :
     info.sr += 1;
 
     {//transposition table code
-        let (l,h) = info.tt.fetch(bb);
+        let (l,h) = tt.fetch(bb);
 
         if l >= beta  { return (Move::null(), l); }
         alpha = if l > alpha {l} else {alpha};
@@ -65,7 +66,7 @@ pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &H, bb : Board, mut alpha :
     {
         let mut bc = bb.copy();
         bc.f_do_move(mvs[order[0].1]);
-        let score = -pvs(info, hr, bc, -beta, -alpha, depth-1, color^1, msleft).1;
+        let score = -pvs(info, tt, hr, bc, -beta, -alpha, depth-1, color^1, msleft).1;
 
         if info.to {
             return (Move::null(), 0);
@@ -85,9 +86,9 @@ pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &H, bb : Board, mut alpha :
         let mv = mvs[order[i].1];
         bc.f_do_move(mv);
 
-        let mut score = -pvs(info, hr, bc, -alpha-1, -alpha, depth-1, color^1, msleft).1;
+        let mut score = -pvs(info, tt, hr, bc, -alpha-1, -alpha, depth-1, color^1, msleft).1;
         if alpha < score && score < beta {
-            score = -pvs(info, hr, bc, -beta, -alpha, depth-1, color^1, msleft).1;
+            score = -pvs(info, tt, hr, bc, -beta, -alpha, depth-1, color^1, msleft).1;
         }
 
         g = if g < score {m = mv; score} else {g};
@@ -101,7 +102,7 @@ pub fn pvs<H: Heuristic>(info : &mut SearchInfo, hr: &H, bb : Board, mut alpha :
     if g > alpha && g < beta    { high = g; low = g; }
     if g >= beta                { low = g; }
     
-    info.tt.update(bb, low, high);
+    tt.update(bb, low, high);
     
     (m, g)
 }
@@ -169,18 +170,20 @@ pub fn pvs_id<Hf: Heuristic + Clone, Hz: Heuristic + Clone>(bb : Board, hr : &[B
             "Depth", "Best Move", "Minimax Value", "Transpositions", "Nodes Searched", "Time Elapsed");
     eprintln!("[COIN]: |{0:-<7}|{0:-<11}|{0:-<15}|{0:-<16}|{0:-<16}|{0:-<14}|", "");
 
+    let tt = TranspositionTable::new(20_000_000);
+
     while d <= max_depth && d <= empty + 2 {
 
-        info.tt.clear();
+        tt.clear();
         info.reset_history();
 
         //select heuristic
         let hi = empty as i32 - d as i32;
 
         let (m, s) = if hi <= 0 {
-            pvs(&mut info, hz, bb.copy(), i32::MIN+1, i32::MAX-1, d, 0, msleft)
+            pvs(&mut info, &tt, hz, bb.copy(), i32::MIN+1, i32::MAX-1, d, 0, msleft)
         } else {
-            pvs(&mut info, &mut (*hr[(hi/3) as usize].clone()), bb.copy(), i32::MIN+1, i32::MAX-1, d, 0, msleft)
+            pvs(&mut info, &tt, &mut (*hr[(hi/3) as usize].clone()), bb.copy(), i32::MIN+1, i32::MAX-1, d, 0, msleft)
         };
 
         if info.to {
@@ -197,7 +200,7 @@ pub fn pvs_id<Hf: Heuristic + Clone, Hz: Heuristic + Clone>(bb : Board, hr : &[B
         };
         
         eprintln!("[COIN]: | {: >5} | {: >9} | {: >13} | {: >14} | {: >14} | {: >12.2} |",
-                d, format!("{}",best_move), s, info.tt.size(), info.sr, elapsed);
+                d, format!("{}",best_move), s, tt.size(), info.sr, elapsed);
         
         d += 2;
     }

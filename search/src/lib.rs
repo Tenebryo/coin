@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 extern crate bitboard;
 extern crate heuristic;
 extern crate rand;
@@ -8,6 +9,7 @@ mod mtdf_id_timeout;
 mod transposition;
 mod search;
 mod monte_carlo;
+mod par_monte_carlo;
 mod pvs;
 mod jamboree;
 
@@ -19,6 +21,7 @@ pub use pvs::pvs_id;
 pub use search::Search;
 pub use search::SearchInfo;
 pub use monte_carlo::MonteCarloSearch;
+pub use par_monte_carlo::ParMonteCarloSearch;
 
 pub use jamboree::jamboree_id;
 pub use jamboree::JamboreeSearchInfo;
@@ -39,18 +42,6 @@ mod tests {
     use std::time::Instant;
 
     use self::rand::Rng;
-    #[test]
-    fn it_works() {
-    }
-
-    #[test]
-    fn negamax_mtdf_consistency() {
-        let mut b = Board::new();
-
-        //let m = mtdf_id_timeout(b, Box::new(BasicHeuristic::new()), 34, 10000);
-
-        //println!("Move: {}", m);
-    }
 
     #[test]
     fn pvs_test() {
@@ -58,7 +49,7 @@ mod tests {
         use heuristic::ScaledBasicHeuristic;
 
         let tmp = Box::new(ScaledBasicHeuristic::new(10));
-        let mut tmp_hr = [
+        let tmp_hr = [
             tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
             tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
             tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
@@ -71,30 +62,9 @@ mod tests {
         );
 
 
-        let mut out_move = pvs_id(b1, &mut tmp_hr, &mut ScaledBasicHeuristic::new(10_000), 9, 1000);
+        let out_move = pvs_id(b1, &tmp_hr, &ScaledBasicHeuristic::new(10_000), 9, 1000);
 
         println!("BEST MOVE: {} FOR \n{}", out_move, b1);
-    }
-
-    #[test]
-    fn rayon_test() {
-        use rayon::prelude::*;
-
-        let data = (0..10u64).collect::<Vec<_>>();
-
-        let s = data.par_iter().map(|x| {
-            eprintln!("B: {}", x);
-            x * x + 100 * x - 1064
-        }).collect::<Vec<_>>();
-
-        for i in s {
-            eprintln!("A: {}", i);
-        }
-
-
-        data.par_iter()
-            .map(|x| {eprintln!("B: {}", x); x} )
-            .map(|x| {eprintln!("A: {}", x); x} ).collect::<Vec<_>>();
     }
 
     #[test]
@@ -106,7 +76,7 @@ mod tests {
         let mut mvs = empty_movelist();
         let mut b = Board::new();
 
-        for i in 0..45 {
+        for _ in 0..45 {
             let n = b.get_moves(&mut mvs);
             b.f_do_move(mvs[(r.gen::<u8>() % n) as usize]);
         }
@@ -114,6 +84,27 @@ mod tests {
         let res = mcts.search_for_millis(b, 10000);
 
         eprintln!("{}", b);
+        eprintln!("{}", res);
+    }
+
+    #[test]
+    fn par_monte_carlo_test() {
+        use ::ParMonteCarloSearch;
+        let mut r = rand::thread_rng();
+        let mut mcts = ParMonteCarloSearch::new();
+
+        let mut mvs = empty_movelist();
+        let mut b = Board::new();
+
+        for _ in 0..40 {
+            let n = b.get_moves(&mut mvs);
+            b.f_do_move(mvs[(r.gen::<u8>() % n) as usize]);
+        }
+
+        let res = mcts.search_for_millis(b, 10_000);
+
+        eprintln!("{}", b);
+        eprintln!("{}", res);
     }
 
     #[test]
@@ -123,7 +114,7 @@ mod tests {
         use heuristic::WLDHeuristic;
 
         let tmp = Box::new(WLDHeuristic::new());
-        let mut tmp_hr = [
+        let tmp_hr = [
             tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
             tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
             tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), tmp.clone(), 
@@ -135,15 +126,16 @@ mod tests {
         let mut mvs = empty_movelist();
         let mut b = Board::new();
 
-        for i in 0..41 {
+        for _ in 0..40 {
             let n = b.get_moves(&mut mvs);
             b.f_do_move(mvs[(r.gen::<u8>() % n) as usize]);
         }
 
         eprintln!("{}", b);
 
-        let res = jamboree_id(b, &tmp_hr, &WLDHeuristic::new(), 60, 30000);
+        let res = jamboree_id(b, &tmp_hr, &WLDHeuristic::new(), 60, 15_000);
 
         eprintln!("{}", b);
+        eprintln!("{}", res);
     }
 }

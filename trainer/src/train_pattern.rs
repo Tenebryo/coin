@@ -33,32 +33,22 @@ pub fn train_pattern(
             let last  = min(tdata.len(), (batch + 1) * batch_size);
             let bdata = &tdata[first..last];
 
-            let mut syms = vec![];
+            for (sym, cost) in (0..(last-first)).map(|bi| {
 
-            let mut cost : f32 = 0.0;
-            for bi in 0..(last-first) {
+                let (c, sym) = patterns.eval_raw(bdata[bi].ps, bdata[bi].os);
+                let cost = c  - (bdata[bi].sc as f32);
 
-                let (c, sym) = patterns.eval_raw(bdata[bi].ps,bdata[bi].os);
-                cost += c  - (bdata[bi].sc as f32);
+                total_cost += cost*cost;
 
-                syms.push(sym);
+                (sym, cost)
+            }).collect::<Vec<_>>() {
+                patterns.adjust(sym, eta*cost);
             }
-
-
-            cost /= (last-first) as f32;
-
-            // println!("Cost = {:10?}", cost);
-
-            for bi in 0..(last-first) {
-                patterns.adjust(syms[bi], eta*cost);
-            }
-
-            total_cost += cost*cost;
         }
 
-        total_cost /= num_batches as f32;
+        total_cost /= tdata.len() as f32;
 
-        println!("Epoch {:3} complete. Average cost = {:10.2}.", epoch+epoch_start, total_cost);
+        println!("Epoch {:4} complete. Average cost = {:10.2}. Eta = {}", epoch+epoch_start, total_cost, eta);
 
     }
 

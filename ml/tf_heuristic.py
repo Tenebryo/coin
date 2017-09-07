@@ -46,7 +46,7 @@ with tf.name_scope('value') as scope:
 with tf.name_scope('policy') as scope:
     # tf Graph Input
     x = tf.placeholder(tf.float32, [None, 8, 8, 4], name='input')
-    y = tf.placeholder(tf.float32, [None, 8, 8, 1])
+    y = tf.placeholder(tf.float32, [None, 8, 8, 1], name='expected')
 
     # Set model weights
     #first pass filters
@@ -153,11 +153,3 @@ with tf.name_scope('policy') as scope:
 init = tf.global_variables_initializer()
 
 saver = tf.train.Saver(tf.global_variables())
-
-
-with tf.Session() as session:
-    session.run(init)
-
-    
-
-    pass

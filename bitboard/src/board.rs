@@ -2,7 +2,7 @@ use std::fmt;
 use bit_ops::*;
 use std::ops::Not;
 
-pub const MAX_MOVES : usize = 28;
+pub const MAX_MOVES : usize = 30;
 
 pub type MoveList = [Move; MAX_MOVES];
 pub type MoveOrder = [(i32, usize); MAX_MOVES];
