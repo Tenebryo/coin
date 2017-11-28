@@ -1,0 +1,16 @@
+[package]
+name = "mcts"
+version = "0.1.0"
+authors = ["Sam Blazes <sblazes@caltech.edu>"]
+
+[lib]
+name = "mcts"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mcts_train"
+path = "src/bin.rs"
+
+[dependencies]
+bitboard = {path = "../bitboard"}
+rusty-machine = "0.5.4"
