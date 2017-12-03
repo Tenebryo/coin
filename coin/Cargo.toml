@@ -6,9 +6,10 @@ authors = ["Sam Blazes <sblazes@caltech.edu>"]
 [dependencies]
 bitboard = {path = "../bitboard"}
 heuristic = {path = "../heuristic"}
-search = {path = "../search"}
-serde = "1.0.8"
-serde_derive = "1.0.8"
-serde_json = "1.0.2"
+mcts = {path = "../mcts"}
+# search = {path = "../search"}
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
 rand = "0.3"
-#tensorflow = "0.3"
+# tensorflow = "0.3"

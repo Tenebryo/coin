@@ -1,6 +1,7 @@
 extern crate bitboard;
 extern crate heuristic;
-extern crate search;
+// extern crate search;
+extern crate mcts;
 
 #[macro_use]
 extern crate serde_derive;

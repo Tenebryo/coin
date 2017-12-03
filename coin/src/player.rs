@@ -7,11 +7,9 @@ use bitboard::Board;
 use bitboard::Move;
 use bitboard::Turn;
 use bitboard::empty_movelist;
-use search::mtdf_id_timeout;
-use search::NegamaxSearch;
-use search::MonteCarloSearch;
-use search::ParMonteCarloSearch;
-use search;
+
+use mcts;
+use mcts::*;
 
 use std::path::Path;
 use std::time::Instant;
@@ -21,8 +19,7 @@ use std::time::Instant;
 pub struct Player {
     phs     : [Box<PatternHeuristic>; 20],
     //phs     : [BasicHeuristic; 20],
-    mcts    : MonteCarloSearch,
-    pmcts   : ParMonteCarloSearch,
+    mcts_m  : mcts::MctsTree,
 }
 
 const time_alloc : [f32; 64] = [
@@ -39,6 +36,12 @@ const time_alloc : [f32; 64] = [
 impl Player {
     pub fn new(s : Turn) -> Player {
         Player {
+            let mut net = CoinNet::new("../mcts/data/CoinNet_model.pb").unwrap();
+            net.load(Path::new("../mcts/data/iter5/CoinNet-checkpoint.best.5")).unwrap();
+
+            let mut mcts_m = MonteCarloTree::new(net);
+            mcts_m.set_temperature(1.0);
+
             phs     : [
                 Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e01-03.json"))),
                 Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e04-06.json"))),
@@ -71,8 +74,7 @@ impl Player {
                 // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e55-57.json"))),
                 // Box::new(PatternHeuristic::file(Path::new("./data/patterns_v2/pdesc_e58-60.json")))
             ],
-            mcts    : MonteCarloSearch::new(),
-            pmcts   : ParMonteCarloSearch::new(),
+            mcts_m,
         }
     }
     
@@ -103,7 +105,16 @@ impl Player {
 
 
         //let mut out_move = self.mcts.search_for_millis(b, alloc_time);
-        let mut out_move = self.pmcts.search_for_millis(b, alloc_time);
+        // let mut out_move = self.pmcts.search_for_millis(b, alloc_time);
+
+        let out_move = {
+            self.mcts_m.prune_board(b);
+
+            self.mcts_m.time_rounds(alloc_time);
+
+            let output = self.mcts_m.evaluate()
+        };
+
 
         //let mut out_move = search::jamboree_id(b, &self.phs, &ScaledBasicHeuristic::new(10), 60, alloc_time);
 

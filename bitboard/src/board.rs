@@ -336,6 +336,13 @@ impl Board {
     pub fn count_pieces(&self) -> (u8, u8) {
         (popcount_64(self.ps), popcount_64(self.os))
     }
+    
+
+    /// Counts gets the piece count difference between the current player and
+    /// the opponent.
+    pub fn piece_diff(&self) -> i8 {
+        popcount_64(self.ps) as i8 - popcount_64(self.os) as i8
+    }
 
 
     /// Counts the number of stones on the board.
