@@ -41,7 +41,15 @@ impl Serialize for EvalOutput {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where S: Serializer
     {
-        let tmp = (self.0.split_at(32), self.1);
+        let mut split1 = [0.0;32];
+        let mut split2 = [0.0;32];
+
+        for i in 0..32 {
+            split1[i] = self.0[i];
+            split2[i] = self.0[i+32];
+        }
+
+        let tmp = ((split1, split2), self.1);
 
         tmp.serialize(serializer)
     }
@@ -134,8 +142,8 @@ impl CoinNet {
             lambda        : graph.operation_by_name_required("CoinNet/lambda")?,
             loss          : graph.operation_by_name_required("CoinNet/loss")?,
             save          : graph.operation_by_name_required("CoinNet/saver/SaveV2")?,
-            restore       : graph.operation_by_name_required("CoinNet/saver/RestoreV2")?,
-            // restore       : graph.operation_by_name_required("CoinNet/saver/restore_all")?,
+            // restore       : graph.operation_by_name_required("CoinNet/saver/RestoreV2")?,
+            restore       : graph.operation_by_name_required("CoinNet/saver/restore_all")?,
             file_name     : graph.operation_by_name_required("CoinNet/saver/Const")?,
             graph         : Arc::new(graph),
         })

@@ -228,7 +228,7 @@ impl MctsEdge {
 #[derive(Clone)]
 pub struct MctsTree<E : Evaluator> {
     root    : MctsNode,
-    eval    : E,
+    pub eval    : E,
     temp    : f32,
 }
 
@@ -296,16 +296,21 @@ impl<E : Evaluator> MctsTree<E> {
             self.root.expand_and_eval(&mut self.eval);
         }
 
-        let i = 32;
+        let mut i = 32;
 
-        for (j,e) in &self.root.edges().enumerate() {
-            if e.position.to_board() == board {
+        for j in 0..(self.root.edges.len()) {
+            if self.root.edges[j].to.position.to_board() == board {
                 i = j;
                 break;
             }
         }
 
-        let tmp = mem::replace(&mut self.root.edges[i].to, MctsNode::empty());
+
+        let tmp = if i != 32 {
+            mem::replace(&mut self.root.edges[i].to, MctsNode::empty())
+        } else {
+            MctsNode::new(&board)
+        };
 
         self.root = tmp;
     }

@@ -1,5 +1,5 @@
 extern crate bitboard;
-extern crate heuristic;
+// extern crate heuristic;
 // extern crate search;
 extern crate mcts;
 

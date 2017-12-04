@@ -35,12 +35,15 @@ fn main() {
 }
 
 fn run() -> Result<(), Box<Error>> {
+    use std::path::Path;
 
     let coinnet = CoinNet::new("./data/CoinNet_model.pb")?;
 
     let mut trainer = MctsTrainer::<CoinNet>::new(6, coinnet);
 
-    let mut i = 0;
+    let n = trainer.load_files(&Path::new("./data"))?;
+
+    let mut i = n;
     loop {
         println!("[COIN] Starting training iteration {}", i);
         let eta = match i {

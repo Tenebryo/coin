@@ -5,6 +5,8 @@ use std::io::prelude::*;
 use std::fs;
 use std::fs::File;
 
+use std::error::Error;
+
 use bincode;
 
 use bitboard::*;
@@ -22,13 +24,13 @@ use mcts::*;
 // const SELF_PLAY_VARIANCE_TURNS : usize = 15;
 
 const EVAL_ROUNDS : usize = 800;
-const EVAL_GAMES : usize = 100;
-const EVAL_CUTOFF : usize = 56;
-const EVAL_RANDOM : usize = 20;
+const EVAL_GAMES : usize = 25;
+const EVAL_CUTOFF : usize = 15;
+const EVAL_RANDOM : usize = 10;
 const TRAINING_ITERATIONS : usize = 1064;
-const TRAINING_BATCH_SIZE : usize = 128;
+const TRAINING_BATCH_SIZE : usize = 256;
 const GAME_HISTORY_LENGTH : usize = 10_000;
-const GAMES_PER_ROUND : usize = 500;
+const GAMES_PER_ROUND : usize = 256;
 const SELF_PLAY_VARIANCE_TURNS : usize = 15;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -324,9 +326,9 @@ impl<E: Evaluator> MctsTrainer<E> {
     /// Generates GAMES_PER_ROUND new self-play games. */
     fn self_play(&mut self, iter : usize) {
         let mut positions = 0;
-        let mut new_games = vec![];
+        let mut new_games : Vec<Game> = vec![];
         for i in 0..GAMES_PER_ROUND {
-            print!("[COIN]     Game {}\r", i);
+            print!("\r[COIN]     Game {}", i);
             io::stdout().flush().unwrap();
 
             let g = self.self_play_game();
@@ -346,15 +348,23 @@ impl<E: Evaluator> MctsTrainer<E> {
             } else {
                 self.recent_games[self.last_game] = g;
                 self.last_game += 1;
+                self.last_game %= GAME_HISTORY_LENGTH;
             }
         }
 
         let mut data = bincode::serialize(&new_games, bincode::Infinite).unwrap();
 
-        let mut fd = File::create(Path::new(&format!("./data/iter{}/new_games.dat", iter))).unwrap();
+        let test : Vec<Game> = bincode::deserialize(&data[..]).unwrap();
+
+        let path_str = format!("./data/iter{:03}/new_games.dat", iter);
+        let path = Path::new(&path_str);
+
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+
+        let mut fd = File::create(path).unwrap();
         fd.write_all(&data);
 
-        println!("[COIN]     Added {} new positions.", positions);
+        println!("\r[COIN]     Added {} new positions.", positions);
     }
 
     /// Have the best player play a game against itself and return the result
@@ -426,15 +436,15 @@ impl<E: Evaluator> MctsTrainer<E> {
 
     /// Save all the players to a directory
     fn save_players(&mut self, iter : usize) {
-        let dir_path = format!("./data/iter{}/",iter);
+        let dir_path = format!("./data/iter{:03}/",iter);
         let dir = Path::new(&dir_path);
         fs::create_dir_all(dir).unwrap();
         let can_dir = &fs::canonicalize(dir).unwrap_or_else(|_| panic!(line!()));
         for i in 0..(self.players.len()) {
             let err = if i == self.best {
-                self.players[i].save(&can_dir.join(Path::new(&format!("CoinNet-checkpoint.best.{}", iter))))
+                self.players[i].save(&can_dir.join(Path::new(&format!("CoinNet-checkpoint.best"))))
             } else {
-                self.players[i].save(&can_dir.join(Path::new(&format!("CoinNet-checkpoint.{}.{}", i, iter))))
+                self.players[i].save(&can_dir.join(Path::new(&format!("CoinNet-checkpoint.{}", i))))
             };
 
             match err {
@@ -444,6 +454,68 @@ impl<E: Evaluator> MctsTrainer<E> {
                 }
             }
         }
+    }
+
+    pub fn load_files(&mut self, dir : &Path) -> Result<usize,Box<Error>> {
+        use std::cmp::max;
+        let mut p_iter_dirs = vec![];
+        for dir in fs::read_dir(dir)? {
+            let entry = dir?;
+            if entry.file_name().to_str().unwrap().starts_with("iter") {
+                p_iter_dirs.push(entry.path());
+            }
+        }
+
+        println!("[COIN] Existing training directories: {:?}", p_iter_dirs);
+
+        let mut new_games = vec![];
+
+        for dir in &p_iter_dirs {
+            let mut contents : Vec<u8> = vec![];
+            File::open(dir.join(Path::new("new_games.dat")))?
+                .read_to_end(&mut contents)?;
+
+            let mut decoded : Vec<Game> = bincode::deserialize(&contents[..])?;
+
+            new_games.append(&mut decoded);
+        }
+
+        let n = new_games.len();
+
+        if n > GAME_HISTORY_LENGTH {
+            let mut tmp = new_games[(n-GAME_HISTORY_LENGTH)..].iter()
+                .cloned().collect::<Vec<_>>();
+            self.recent_games.append(&mut tmp);
+        } else {
+            self.recent_games.append(&mut new_games);
+        }
+
+        println!("[COIN] Loaded {} saved games.", self.recent_games.len());
+
+        match p_iter_dirs.last() {
+            Some(last_dir) => {
+                println!("[COIN] Loading checkpoints from \"{:?}\"...", last_dir);
+                for i in 0..(self.players.len()) {
+                    let file = format!("CoinNet-checkpoint.{}.index",i);
+                    let prefix = format!("CoinNet-checkpoint.{}",i);
+                    let prefix2 = format!("CoinNet-checkpoint.best");
+                    if last_dir.join(file).is_file() {
+                        self.players[i].load(&last_dir.join(prefix))?;
+                    } else {
+                        self.players[i].load(&last_dir.join(prefix2))?;
+                        self.best = i;
+                    }
+
+                    let output = self.players[i].eval.evaluate(&[Board::new()]);
+
+
+                    println!("[COIN] Loaded player {} => ({:?})", i, output.1);
+                }
+            },
+            None => {}
+        }
+
+        Ok(p_iter_dirs.len())
     }
 
     /// Do a training iteration.
