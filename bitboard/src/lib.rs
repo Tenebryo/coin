@@ -165,9 +165,17 @@ mod tests {
 
         let iters = 100000;
 
+        let mut rng = rand::thread_rng();
+        let mut bs = (0..iters).map(|_| {
+            Board::position(rng.gen::<u64>(), rng.gen::<u64>(), Turn::BLACK)
+        }).collect::<Vec<_>>();
+
+
+        let mut i = 0;
+        let mut sum = 0;
         let t = bench(|| {
-            let mut b = Board::new();
-            b.update_moves_fast();
+            bs[i].update_moves_fast();
+            i += 1;
         }, iters);
 
         println!("fast_find_moves: {} ns/iter", (t as f64/iters as f64));
@@ -260,7 +268,40 @@ mod tests {
         assert!(fast_min(100,5) == 5);
         assert!(fast_min(2,7) == 2);
     }
-    
+
+    fn explore_tree(b : Board, depth : usize) -> usize {
+
+        if depth == 0 {
+            return 1;
+        }
+
+        let mut mvs = empty_movelist();
+        let n = b.get_moves(&mut mvs);
+
+        let mut sum = 0;
+        for i in 0..n {
+            let mut bc = b;
+            bc.f_do_move(mvs[i as usize]);
+
+            sum += explore_tree(bc, depth-1);
+        }
+
+        return sum;
+    }
+
+    #[test]
+    fn perft_11_bench() {
+        let now = Instant::now();
+
+        let n = explore_tree(Board::new(), 11);
+
+        let dur = now.elapsed();
+
+        let elapsed = dur.as_secs() as f64 + dur.subsec_nanos() as f64 / 1_000_000_000.0f64;
+        println!("PERFT 11 time: {} s", elapsed);
+        println!("PERFT 11 result: {} moves", n);
+    }
+
     fn bench<F>(mut sample : F, iters : usize) -> u64 where F: FnMut() {
         let now = Instant::now();
         for _ in 0..iters {

@@ -1,4 +1,7 @@
+#![feature(test)]
 #![feature(swap_with_slice)]
+
+#![allow(dead_code)]
 
 #[macro_use]
 extern crate serde_derive;

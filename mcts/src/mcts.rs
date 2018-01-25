@@ -69,7 +69,7 @@ impl MctsNode {
     fn expand_and_eval<E : Evaluator>(&mut self, e : &mut E) -> f32 {
         let b = self.position.to_board();
 
-        let val = e.evaluate(&[b]);
+        let val = e.evaluate(&b);
 
         let mut moves = empty_movelist();
         let n = b.get_moves(&mut moves) as usize;
@@ -391,6 +391,10 @@ impl<E : Evaluator> Evaluator for MctsTree<E> {
         }
 
         res
+    }
+
+    fn evaluate_batch(&mut self, input : &[EvalInput]) -> Vec<EvalOutput> {
+        input.iter().map(|i| self.evaluate(i)).collect::<Vec<_>>()
     }
 
     fn train(&mut self, input : &[EvalInput], target : &[EvalOutput], eta : f32) -> f32 {

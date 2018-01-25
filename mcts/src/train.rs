@@ -160,7 +160,7 @@ impl<E: Evaluator> MctsTrainer<E> {
 
             if n != 0 {
                 self.players[cp].n_rounds(EVAL_ROUNDS);
-                let val = self.players[cp].evaluate(&[Board::new()]);
+                let val = self.players[cp].evaluate(&b);
 
                 // let mut mi = 0;
                 // let mut mx = val.0[moves[0].offset() as usize];
@@ -243,7 +243,7 @@ impl<E: Evaluator> MctsTrainer<E> {
                     };
                 } else {
                     self.players[op].n_rounds(EVAL_ROUNDS);
-                    let val = self.players[op].evaluate(&[Board::new()]);
+                    let val = self.players[op].evaluate(&b);
 
                     let sum : f32 = (0..(n as usize)).map(|i| val.0[moves[i].offset() as usize]).sum();
 
@@ -304,7 +304,7 @@ impl<E: Evaluator> MctsTrainer<E> {
                 match selected {
                     Some(s) => {
                         /*  make sure we don't care about passes... */
-                        if s.0[0].mobility().0 != 0 {
+                        if s.0.mobility().0 != 0 {
                             input.push(s.0);
                             output.push(s.1.clone());
                         }
@@ -391,7 +391,7 @@ impl<E: Evaluator> MctsTrainer<E> {
 
             if n != 0 {
                 self.players[cp].n_rounds(EVAL_ROUNDS);
-                val = self.players[cp].evaluate(&[Board::new()]);
+                val = self.players[cp].evaluate(&b);
 
                 let sum : f32 = (0..(n as usize)).map(|i| val.0[moves[i].offset() as usize]).sum();
 
@@ -413,7 +413,7 @@ impl<E: Evaluator> MctsTrainer<E> {
                 selected_move = moves[mi];
             }
 
-            g.add_position([b.clone()], val);
+            g.add_position(b.clone(), val);
 
             /*  Apply the move to the board and player. */
             b.f_do_move(selected_move);
@@ -506,7 +506,7 @@ impl<E: Evaluator> MctsTrainer<E> {
                         self.best = i;
                     }
 
-                    let output = self.players[i].eval.evaluate(&[Board::new()]);
+                    let output = self.players[i].eval.evaluate(&Board::new());
 
 
                     println!("[COIN] Loaded player {} => ({:?})", i, output.1);

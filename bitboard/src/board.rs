@@ -9,18 +9,17 @@ pub type MoveOrder = [(i32, usize); MAX_MOVES];
 
 
 #[derive(Copy, Clone, PartialEq, Hash, Eq, Serialize, Deserialize)]
-pub enum Turn {
-    BLACK,
-    WHITE,
+pub struct Turn(bool);
+
+impl Turn {
+    pub const BLACK : Turn = Turn(true);
+    pub const WHITE : Turn = Turn(false);
 }
 
 impl Not for Turn{
     type Output = Turn;
     fn not(self) -> Turn {
-        match self {
-            Turn::BLACK => Turn::WHITE,
-            Turn::WHITE => Turn::BLACK,
-        }
+        Turn(!self.0)
     }
 }
 
@@ -306,7 +305,7 @@ impl Board {
         
         let gen = match t {
             Turn::BLACK => self.ps,
-            Turn::WHITE => self.os
+            Turn::WHITE => self.os,
         };
         let pcs = self.ps|self.os;
 
@@ -413,13 +412,9 @@ impl Board {
         let empty = !(self.ps | self.os);
         let mut tmp = 0;
         
-        let gen = match t {
-            Turn::BLACK => self.ps,
-            Turn::WHITE => self.os
-        };
-        let pro = match t {
-            Turn::BLACK => self.os,
-            Turn::WHITE => self.ps
+        let (gen,pro) = match t {
+            Turn::BLACK => (self.ps,self.os),
+            Turn::WHITE => (self.os,self.ps),
         };
 
         tmp = sout_one(sout_occl(gen, pro) & pro);
@@ -448,7 +443,7 @@ impl Board {
 
         match t {
             Turn::BLACK => {self.pm = moves;},
-            Turn::WHITE => {self.om = moves;}
+            Turn::WHITE => {self.om = moves;},
         };
     }
 
