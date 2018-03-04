@@ -10,7 +10,6 @@ use std::sync::mpsc::*;
 use std::error::Error;
 use std::result::Result;
 
-use std::time::Instant;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -116,11 +115,11 @@ pub struct CoinNet {
 }
 
 impl CoinNet {
-    pub fn new(fname : &str) -> Result<CoinNet, Box<Error>> {
+    pub fn new(fname : &Path) -> Result<CoinNet, Box<Error>> {
 
-        if !Path::new(fname).exists() {
+        if !fname.exists() {
                 return Err(Box::new(Status::new_set(Code::NotFound,
-                                                    &format!("ERROR: Model file '{}' does not exist.", fname))
+                                                    &format!("ERROR: Model file '{:?}' does not exist.", fname))
                     .unwrap()));
         }
 
@@ -185,6 +184,9 @@ impl CoinNet {
         let t_output_p = step.take_output(tok_output_p)?;
         let t_output_v = step.take_output(tok_output_v)?;
 
+        // eprintln!("   TENSOR: {:?}", t_output_p);
+        // eprintln!("   VALUES: {:?}", &t_output_p[..]);
+
         for j in 0..(b.len()) {
             let jj = 64*j;
             for i in 0..64 {
@@ -231,7 +233,7 @@ impl CoinNet {
         learning_rate[0] = eta;
 
         let mut lambda = Tensor::new(&[]);
-        lambda[0] = 0.0001f32;
+        lambda[0] = 0.00001f32;
 
         let mut step = StepWithGraph::new();
 
@@ -241,7 +243,7 @@ impl CoinNet {
         step.add_input(&self.target_z, 0, &target_z_tensor);
         step.add_input(&self.learning_rate, 0, &learning_rate);
         step.add_input(&self.lambda, 0, &lambda);
-        step.add_target(&self.train_sgd);
+        step.add_target(&self.train_mtn);
 
         let loss = step.request_output(&self.loss, 0);
         self.session.run(&mut step)?;
@@ -333,11 +335,11 @@ impl Evaluator for CoinNet {
 }
 
 /// The max number of inputs to batch together
-const TF_EVAL_BATCH_SIZE : usize = 256;
+pub const TF_EVAL_BATCH_SIZE : usize = 256;
 
 /// The max amount of time before starting a batch that is smaller than the 
 /// max size.
-const TF_EVAL_BATCH_TIMEOUT : u32 = 100_000;
+pub const TF_EVAL_BATCH_TIMEOUT : u32 = 50_000;
 
 /// A worker that processes batches of inputs through tensorflow
 pub struct ParallelCoinNetWorker {
@@ -347,9 +349,11 @@ pub struct ParallelCoinNetWorker {
 }
 
 impl ParallelCoinNetWorker {
-    fn new(model : &str, vars : &Path) -> Result<ParallelCoinNetWorker, Box<Error>> {
+    fn new(model : &Path, vars : Option<&Path>) -> Result<ParallelCoinNetWorker, Box<Error>> {
         let mut net = CoinNet::new(model)?;
-        net.load(vars)?;
+        if let Some(vars) = vars {
+            net.load(vars)?;
+        }
 
         let net = Mutex::new(net);
         let (work_tx, work_rx) = channel();
@@ -360,7 +364,7 @@ impl ParallelCoinNetWorker {
     }
 
     /// Receive any work sent to this batch worker and process it.
-    pub fn do_a_work(&mut self) {
+    pub fn do_a_work(&self) -> usize {
         let mut inputs = vec![];
         let mut txs = vec![];
 
@@ -373,18 +377,38 @@ impl ParallelCoinNetWorker {
             }
         }
 
+        let n = inputs.len();
+
+        if n == 0 {
+            return n;
+        }
+
         let outputs = self.net.lock().unwrap().evaluate_batch(&inputs);
 
         for (o,tx) in outputs.into_iter().zip(txs.iter()) {
             tx.send(o).unwrap();
         }
+
+        n
+    }
+
+    pub fn train(&self, inputs : &[EvalInput], targets : &[EvalOutput], eta : f32) -> f32 {
+        self.net.lock().unwrap().train(inputs, targets, eta)
+    }
+
+    pub fn save(&self, filename : &Path) -> Result<(), Box<Error>> {
+        self.net.lock().unwrap().save(filename)
+    }
+
+    pub fn load(&self, filename : &Path) -> Result<(), Box<Error>>{
+        self.net.lock().unwrap().load(filename)
     }
 }
 
 /// An evaluator whose inputs are evaluated in batches to maximize throughput of
 /// many parallel games.
 pub struct ParallelCoinNet {
-    batch_worker  : Arc<ParallelCoinNetWorker>,
+    // batch_worker  : Arc<ParallelCoinNetWorker>,
     batch_channel : Sender<(EvalInput, Sender<EvalOutput>)>,
     eval_tx       : Sender<EvalOutput>,
     eval_rx       : Receiver<EvalOutput>,
@@ -393,18 +417,18 @@ pub struct ParallelCoinNet {
 impl ParallelCoinNet {
     /// Creates a new pool of evaluators that send all evalutations to a common
     /// batch processor to reduce TF overhead.
-    pub fn new_worker_group(model : &str, vars : &Path, n : usize) -> Result<(Vec<ParallelCoinNet>, Arc<ParallelCoinNetWorker>), Box<Error>> {
+    pub fn new_worker_group(model : &Path, vars : Option<&Path>) -> Result<(ParallelCoinNet, Arc<ParallelCoinNetWorker>), Box<Error>> {
         let worker = Arc::new(ParallelCoinNetWorker::new(model, vars)?);
 
         Ok(
-            ((0..n).map(|_| {
+            ({
                 let (eval_tx, eval_rx) = channel();
                 ParallelCoinNet{
-                    batch_worker  : worker.clone(),
+                    // batch_worker  : worker.clone(),
                     batch_channel : worker.work_tx.clone(),
                     eval_tx, eval_rx,
                 }
-            }).collect(), worker)
+            }, worker)
         )
     }
 }
@@ -414,7 +438,7 @@ impl Clone for ParallelCoinNet {
     fn clone(&self) -> ParallelCoinNet {
         let (eval_tx, eval_rx) = channel();
         ParallelCoinNet {
-            batch_worker  : self.batch_worker.clone(),
+            // batch_worker  : self.batch_worker.clone(),
             batch_channel : self.batch_channel.clone(),
             eval_tx, eval_rx,
         }
@@ -432,16 +456,19 @@ impl Evaluator for ParallelCoinNet {
         unimplemented!();
     }
 
-    fn train(&mut self, inputs : &[EvalInput], targets : &[EvalOutput], eta : f32) -> f32 {
-        self.batch_worker.net.lock().unwrap().train(inputs, targets, eta)
+    fn train(&mut self, _inputs : &[EvalInput], _targets : &[EvalOutput], _eta : f32) -> f32 {
+        unimplemented!();
+        // self.batch_worker.net.lock().unwrap().train(inputs, targets, eta)
     }
 
-    fn save(&mut self, filename : &Path) -> Result<(), Box<Error>> {
-        self.batch_worker.net.lock().unwrap().save(filename)
+    fn save(&mut self, _filename : &Path) -> Result<(), Box<Error>> {
+        unimplemented!();
+        // self.batch_worker.net.lock().unwrap().save(filename)
     }
 
-    fn load(&mut self, filename : &Path) -> Result<(), Box<Error>>{
-        self.batch_worker.net.lock().unwrap().load(filename)
+    fn load(&mut self, _filename : &Path) -> Result<(), Box<Error>>{
+        unimplemented!();
+        // self.batch_worker.net.lock().unwrap().load(filename)
     }
 }
 
@@ -456,13 +483,13 @@ mod eval_tests {
     #[bench]
     fn bench_tf_model_load(b : &mut Bencher) {
         b.iter(|| {
-            black_box(CoinNet::new("./data/CoinNet_model.pb").unwrap());
+            black_box(CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap());
         });
     }
 
     #[bench]
     fn bench_tf_model_eval(b : &mut Bencher) {
-        let mut net = CoinNet::new("./data/CoinNet_model.pb").unwrap();
+        let mut net = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
         b.iter(|| {
             black_box(net.evaluate(&Board::new()));
@@ -471,7 +498,7 @@ mod eval_tests {
 
     #[bench]
     fn bench_tf_model_eval_batch_32(b : &mut Bencher) {
-        let mut net = CoinNet::new("./data/CoinNet_model.pb").unwrap();
+        let mut net = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
         // run a test doing a batch of 256 boards.
         b.iter(|| {
@@ -481,7 +508,7 @@ mod eval_tests {
 
     #[bench]
     fn bench_tf_model_eval_batch_64(b : &mut Bencher) {
-        let mut net = CoinNet::new("./data/CoinNet_model.pb").unwrap();
+        let mut net = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
         // run a test doing a batch of 256 boards.
         b.iter(|| {
@@ -491,7 +518,7 @@ mod eval_tests {
 
     #[bench]
     fn bench_tf_model_eval_batch_128(b : &mut Bencher) {
-        let mut net = CoinNet::new("./data/CoinNet_model.pb").unwrap();
+        let mut net = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
         // run a test doing a batch of 256 boards.
         b.iter(|| {
@@ -501,7 +528,7 @@ mod eval_tests {
 
     #[bench]
     fn bench_tf_model_eval_batch_256(b : &mut Bencher) {
-        let mut net = CoinNet::new("./data/CoinNet_model.pb").unwrap();
+        let mut net = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
         // run a test doing a batch of 256 boards.
         b.iter(|| {

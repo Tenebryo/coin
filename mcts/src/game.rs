@@ -1,13 +1,12 @@
 
 use std::io::prelude::*;
-use std::io::Seek;
-use std::io::SeekFrom;
 use std::io::Result;
 use std::fs::File;
 use std::path::Path;
-use std::error::Error;
+use std::io;
 
 use bitboard::*;
+use eval::*;
 
 const RS_OFFSET : usize = 6;
 const TS_OFFSET : usize = 7;
@@ -18,7 +17,7 @@ const FILE_OFFSET : usize = 16;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Game {
-    pub states  : Vec<(Board, f32)>,
+    pub states  : Vec<(EvalInput, EvalOutput)>,
     pub moves   : Vec<Move>,
 }
 
@@ -30,14 +29,13 @@ impl Game {
         }
     }
 
-    pub fn from_wthor_raw(wthor_raw : &[u8]) -> Game {
+    pub fn from_wthor_raw(wthor_raw : &[u8]) -> Result<Game> {
 
-
-        let mut moves = vec![];
-        let mut states = vec![];
 
         let mut b = Board::new();
+        let mut g = Game::new();
 
+        let mut turn = 1;
         for m in 0..60 {
             // stop when the game is done
             if b.is_done() {
@@ -46,6 +44,7 @@ impl Game {
             // account for passes
             if !b.has_move().0 {
                 b.f_do_move(Move::pass());
+                turn = -turn;
             }
 
             //get the move
@@ -55,32 +54,48 @@ impl Game {
             let m = Move::new(x,y);
 
             //make sure the move is always valid
-            assert!(x <= 7 && y <= 7);
-            assert!(b.check_move(m).0);
+            if !(x <= 7 && y <= 7) {return Err(io::Error::new(io::ErrorKind::Other, "Move Out of Bounds"));};
+            if !b.check_move(m).0 {return Err(io::Error::new(io::ErrorKind::Other, "Invalid Move"));};
 
             // add the move to the game
-            moves.push(m);
 
-            states.push((b, 0.0));
+            let mut prior = [0.0;64];
+            prior[m.offset() as usize] = 1.0;
+            g.add_position(b, EvalOutput(prior, 0.0));
+            g.add_move(m);
 
             b.f_do_move(m);
         }
 
-        let mut g = Game {
-            moves,
-            states,
-        };
-
         //find the ending score of the game. (WTHOR stores a weird, rather 
         //useless value for the score).
-        let result = b.piece_diff() as f32 / 64.0;
+        let result = (b.piece_diff() as f32 / 64.0);
 
-        g.set_result(result);
+        g.set_result(-result);
 
-        g
+        Ok(g)
     }
 
-    pub fn add_position(&mut self, input : Board, output : f32) {
+    pub fn add_position(&mut self, input : EvalInput, mut output : EvalOutput) {
+
+        //convert to 1 hot encoding:
+        let mut mmax = output.0[0];
+        let mut imax = 0;
+        for i in 1..(output.0.len()) {
+            if mmax < output.0[i] {
+                mmax = output.0[i];
+                imax = i;
+            }
+        }
+
+        for i in 0..(output.0.len()) {
+            output.0[i] = if i == imax {
+                1.0
+            } else {
+                0.0
+            };
+        }
+
         self.states.push((input, output));
     }
 
@@ -89,8 +104,8 @@ impl Game {
     }
 
     pub fn set_result(&mut self, mut result : f32) {
-        for i in 0..(self.states.len()) {
-            (self.states[i].1) = result;
+        for i in (0..(self.states.len())).rev() {
+            (self.states[i].1).1 = result;
             result = -result;
         }
     }
@@ -106,7 +121,7 @@ pub fn load_wthor_database(database : &Path) -> Result<Vec<Game>> {
 
     for i in 0..((buf.len()-FILE_OFFSET)/GAME_LENGTH) {
         let i = GAME_LENGTH * i + FILE_OFFSET;
-        games.push(Game::from_wthor_raw(&buf[i..(i+GAME_LENGTH)]));
+        games.push(Game::from_wthor_raw(&buf[i..(i+GAME_LENGTH)])?);
     }
 
     Ok(games)
@@ -125,6 +140,6 @@ fn saved_games_test() {
     let mut decoded : Vec<Game> = bincode::deserialize(&contents[..]).unwrap();
 
     for g in decoded {
-        eprintln!("State: {}", g.states[0].1);
+        eprintln!("State: {}", (g.states[0].1).1);
     }
 }

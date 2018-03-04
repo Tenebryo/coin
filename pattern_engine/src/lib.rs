@@ -1,7 +1,8 @@
-#![feature(asm)]
+#![feature(asm, iterator_step_by)]
 extern crate bson;
 extern crate rand;
 extern crate bitboard;
+extern crate heuristic;
 
 #[macro_use]
 extern crate serde_derive;
@@ -12,14 +13,15 @@ mod pattern_lut;
 mod pattern;
 mod pattern_set;
 mod twos_to_threes_lut;
+mod staged_heuristic;
 
 pub use pattern_lut::PatternLUT;
 pub use pattern::Pattern;
 pub use pattern_set::PatternSet; 
+pub use staged_heuristic::StagedHeuristic;
 
 #[cfg(test)]
 mod tests {
-    extern crate time;
     use rand::Rng;
     use rand;
 

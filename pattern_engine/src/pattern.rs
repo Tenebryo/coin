@@ -45,7 +45,7 @@ impl Pattern {
         let mut rng = rand::thread_rng();
 
         for _ in 0..n {
-            data.push((rng.gen::<f32>() -  0.5) * 640.0);
+            data.push(0.005 * (rng.gen::<f32>() -  0.5) * 2.0);
         }
 
         Pattern::new(mask, data.into_boxed_slice())
@@ -66,10 +66,24 @@ impl Pattern {
         self.scores[self.poslut.eval(bits_b, bits_w)]
     }
 
-    ///Adjust the pattern scores for a specific board given a gradient.
+    ///Adjust the pattern scores for a specific board given a gradient value.
     pub fn adjust(&mut self, bits_b : u64, bits_w : u64, amount : f32) {
         let i = self.poslut.eval(bits_b, bits_w);
         self.scores[i] -= amount;
+        self.occurs[i] += 1;
+    }
+
+    ///Adjust the pattern scores for a specific board given a gradient function.
+    pub fn adjust_fn<F>(&mut self, bits_b : u64, bits_w : u64, grad_fn : &mut F) 
+        where F: FnMut(f32) -> f32 
+    {
+        let i = self.poslut.eval(bits_b, bits_w);
+
+        //compute gradient given the weight
+        let grad = grad_fn(self.scores[i]);
+
+        //adjust by the gradient
+        self.scores[i] -= grad;
         self.occurs[i] += 1;
     }
 

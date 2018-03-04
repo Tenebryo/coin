@@ -12,6 +12,9 @@ extern crate bincode;
 extern crate rand;
 extern crate rayon;
 
+extern crate threadpool;
+extern crate scoped_threadpool;
+
 extern crate tensorflow as tf;
 
 extern crate bitboard;
@@ -19,9 +22,8 @@ extern crate bitboard;
 mod eval;
 mod mcts;
 mod train;
+mod game;
 
-use eval::*;
-use mcts::*;
 use train::*;
 
 use std::error::Error;
@@ -32,6 +34,7 @@ fn main() {
         Ok(_) => {0},
         Err(e) => {
             println!("{:?}", e);
+
             1
         },
     })
@@ -40,19 +43,21 @@ fn main() {
 fn run() -> Result<(), Box<Error>> {
     use std::path::Path;
 
-    let coinnet = CoinNet::new("./data/CoinNet_model.pb")?;
-
-    let mut trainer = MctsTrainer::<CoinNet>::new(6, coinnet);
+    let mut trainer = MctsTrainer::new(3, &Path::new("./data/CoinNet_model.pb"), None);
 
     let n = trainer.load_files(&Path::new("./data"))?;
 
-    let mut i = n;
+    eprintln!("[COIN] Seeding players with logistello opening book...");
+
+    // trainer.seed_players(n, &Path::new("D:\\doc\\caltech\\othello\\databases\\"))?;
+
+    let mut i = n+1;
     loop {
         println!("[COIN] Starting training iteration {}", i);
         let eta = match i {
-              0 ... 400 => 0.0001,
-            400 ... 600 => 0.00005,
-            _           => 0.000025,
+              0 ... 400 => 0.01,
+            400 ... 600 => 0.005,
+            _           => 0.0025,
         };
         trainer.iteration(i, eta);
 

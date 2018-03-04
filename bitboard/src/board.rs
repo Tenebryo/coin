@@ -100,7 +100,22 @@ pub fn empty_moveorder() -> MoveOrder {
     [(0,0); MAX_MOVES]
 }
 
+
+const NUM_TO_LET : [char; 8] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 impl fmt::Display for Move {
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.is_pass() {
+            write!(f, "(PASS)")
+        } else if self.is_null() {
+            write!(f, "(NULL)")
+        } else {
+            write!(f, "({}{})", NUM_TO_LET[self.x() as usize], self.y())
+        }
+    }
+}
+
+impl fmt::Debug for Move {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.is_pass() {

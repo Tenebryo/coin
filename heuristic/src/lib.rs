@@ -1,5 +1,5 @@
 extern crate bitboard;
-extern crate pattern_engine;
+// extern crate pattern_engine;
 
 #[macro_use]
 extern crate serde_derive;
@@ -10,14 +10,7 @@ extern crate rand;
 
 mod heuristic;
 
-pub use heuristic::{
-    Heuristic, 
-    BasicHeuristic, 
-    ScaledBasicHeuristic, 
-    PatternHeuristic, 
-    WLDHeuristic, 
-    HandmadeHeuristic
-};
+pub use heuristic::*;
 
 #[cfg(test)]
 mod tests {

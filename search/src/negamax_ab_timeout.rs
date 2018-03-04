@@ -24,7 +24,7 @@ pub struct NegamaxSearch<H: Heuristic> {
     tt  : TranspositionTable,
     hr  : Box<H>,
     to  : bool,
-    st  : Instant,
+pub st  : Instant,
     dc  : u8,
     sr  : u64, 
     rn  : ThreadRng,

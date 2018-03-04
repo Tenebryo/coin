@@ -1,6 +1,7 @@
 extern crate bitboard;
 // extern crate heuristic;
-// extern crate search;
+extern crate pattern_engine;
+extern crate search;
 extern crate mcts;
 
 #[macro_use]
@@ -12,8 +13,10 @@ extern crate rand;
 #[macro_use]
 pub mod common;
 
-pub mod player;
+pub mod players;
 pub mod opening;
+
+use players::*;
 
 use std::env;
 use std::io;
@@ -23,7 +26,7 @@ use bitboard::Board;
 use bitboard::Move;
 use bitboard::Turn;
 
-use player::Player;
+use players::*;
 
 
 fn main() {
@@ -50,7 +53,7 @@ fn main() {
     
     cerrln!("{}", b);
     
-    let mut p = Player::new(t);
+    let mut p = MctsPlayer::new(t);
     
     println!("Init done");
     
@@ -65,6 +68,7 @@ fn main() {
                 n = y_inp.find(char::is_whitespace).unwrap();
                 let mut ms_inp = y_inp.split_off(n).split_off(1);
                 ms_inp = ms_inp.trim().to_string();
+
                 
                 let m = match (
                     x_inp.parse::<i8>().unwrap(),
@@ -74,9 +78,13 @@ fn main() {
                     (x,y) => Move::new(x as u8,y as u8)
                 };
                 
-                ms_left = ms_inp.parse::<u64>().unwrap();
-                
+                ms_left = ms_inp.parse::<i64>().unwrap();
+
                 cerrln!("[COIN]: Opponent moved {} <{} ms>", m, ms_left);
+                
+                if ms_left == -1 {
+                    ms_left = 300000;
+                }
                 
                 b.f_do_move(m);
             },
@@ -87,7 +95,7 @@ fn main() {
         cerrln!("\n{}", b);
         
         // make my move
-        let m = p.do_move(b.copy(), ms_left);
+        let m = p.do_move(b.copy(), ms_left as u64);
         
         b.f_do_move(m);
         

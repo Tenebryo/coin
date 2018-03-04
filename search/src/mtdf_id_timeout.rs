@@ -81,10 +81,9 @@ pub fn mtdf_timeout<H : Heuristic>(
 /// * `beta` The upper bound of the minimax score
 /// * `d` The maximum depth to search to
 /// * `ms_left` The number of milliseconds allocated to make the move
-pub fn mtdf_id_timeout<H : Heuristic + Clone, Hf : Heuristic + Clone>(
+pub fn mtdf_id_timeout<H : Heuristic + Clone>(
     bb      : Board,
-    hs      : &[Box<H>],
-    hz      : Box<Hf>,
+    hs      : Box<H>,
     md      : u8,
     ms_left : u64
 ) -> Move {
@@ -99,7 +98,8 @@ pub fn mtdf_id_timeout<H : Heuristic + Clone, Hf : Heuristic + Clone>(
 
     let empty = bb.total_empty();
 
-    cerrln!("[COIN]: Starting MTD(f) search for {}!", bb.get_turn());
+    cerrln!("[COIN]: Starting MTD(f) search!");
+    // cerrln!("[COIN]: Starting MTD(f) search for {}!", bb.get_turn());
     
     let mut mv = Move::null();
     let mut f = 0;
@@ -115,27 +115,14 @@ pub fn mtdf_id_timeout<H : Heuristic + Clone, Hf : Heuristic + Clone>(
         //depth of search
         //self.reinit_history();
 
-        let mut hi = (if (empty as i16 - d as i16 - 1) < 0 {0} else {empty as i16 - d as i16 - 1})/3;
 
-        let mut to = false;
-        let mut sr = 0;
-        let mut tr = 0;
-        //isolate so compiler can detect types and optimize properly
-        let (m, v) = if empty as i32 - d as i32 <= 0 {
-            let mut ng = NegamaxSearch::new(hz.clone(), start);
-            let (m,v) = mtdf_timeout(&mut ng, bb.copy(), f, d, ms_left);
-            tr = ng.get_transpositions();
-            sr = ng.get_searched();
-            to = ng.timeout();
-            (m,v)
-        } else {
-            let mut ng = NegamaxSearch::new(hs[hi as usize].clone(), start);
-            let (m,v) = mtdf_timeout(&mut ng, bb.copy(), f, d, ms_left);
-            tr = ng.get_transpositions();
-            sr = ng.get_searched();
-            to = ng.timeout();
-            (m,v)
-        };
+        let mut ng = NegamaxSearch::new(hs.clone(), start);
+        let (m,v) = mtdf_timeout(&mut ng, bb.copy(), f, d, ms_left);
+        let mut tr = ng.get_transpositions();
+        let mut sr = ng.get_searched();
+        let mut to = ng.timeout();
+
+
         
         if to {
             cerrln!("[COIN]: TIMEOUT");
@@ -155,11 +142,6 @@ pub fn mtdf_id_timeout<H : Heuristic + Clone, Hf : Heuristic + Clone>(
         //This allows us to search deeper as well as compare scores between
         //iterations more accurately
         d += 2;
-
-        // we've reached the end of the search depth.
-        if hi == 0 {
-            break;
-        }
     }
    
      let d = start.elapsed();

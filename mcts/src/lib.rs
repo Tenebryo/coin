@@ -18,9 +18,11 @@ extern crate bitboard;
 
 pub mod eval;
 pub mod mcts;
+pub mod game;
 
 pub use eval::*;
 pub use mcts::*;
+pub use game::*;
 
 #[cfg(test)]
 mod tests {

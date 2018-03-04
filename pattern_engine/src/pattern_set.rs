@@ -26,7 +26,7 @@ impl PatternSet {
     }
 
     ///adds the scores of each of the patterns together and returns the final
-    ///score. This should be tuned to the range [-640,640], representing the
+    ///score. This should be tuned to the range [-64,64], representing the
     ///final position piece difference times 10 (for extra granularity).
     pub fn eval(&self, bits_b : u64, bits_w : u64) -> i16 {
         self.eval_raw(bits_b, bits_w).0.round() as i16
@@ -36,6 +36,7 @@ impl PatternSet {
     pub fn eval_raw(&self, bits_b : u64, bits_w : u64) -> (f32, [(u64,u64);8]) {
 
         use bitboard::bit_ops::all_board_syms;
+        use bitboard::bit_ops::popcount_64;
 
         let syms = all_board_syms(bits_b, bits_w);
 
@@ -67,6 +68,21 @@ impl PatternSet {
         for p in self.patterns.iter_mut() {
             for sym in syms.iter() {
                 p.adjust(sym.0, sym.1, adjust_amount);
+            }
+        }
+
+    }
+
+
+    ///Given a set of positions, adjust the weights of the patterns to fit the
+    ///the data. For best results, the data should be shuffled before using.
+    pub fn adjust_fn<F>(&mut self, syms : [(u64,u64);8], grad_fn : &mut F) 
+        where F: FnMut(f32) -> f32 
+    {
+
+        for p in self.patterns.iter_mut() {
+            for sym in syms.iter() {
+                p.adjust_fn(sym.0, sym.1, grad_fn);
             }
         }
 

@@ -4,10 +4,16 @@ use std::path::Path;
 use std::result::Result;
 use std::error::Error;
 
+use std::io::prelude::*;
+use std::fs::File;
+use std::fs;
+use std::io;
+
 use bitboard::*;
 use eval::*;
 
-const EXPLORATION_CONSTANT : f32 = 1.0;
+const EXPLORATION_CONSTANT : f32 = 0.8;
+const FIRST_PLAY_URGENCY_CONSTANT : f32 = 0.25;
 
 #[derive(PartialEq, PartialOrd, Copy, Clone, Debug)]
 enum MctsNodeState {
@@ -49,7 +55,7 @@ impl MctsNode {
         MctsNode {
             position    : Position::from_board(*position),
             state       : state,
-            value       : score as f32 / 64.0,
+            value       : score as f32,
             edges       : vec![],
         }
     }
@@ -77,11 +83,11 @@ impl MctsNode {
         self.edges.reserve_exact(n);
         for i in 0..n {
             self.edges.push(
-                MctsEdge::new(&b, moves[i],val.0[moves[i].offset() as usize])
+                MctsEdge::new(&b, moves[i],val.0[moves[i].offset() as usize], val.1)
             );
         }
         if n==0 {
-            self.edges.push(MctsEdge::new(&b, Move::pass(),1.0));
+            self.edges.push(MctsEdge::new(&b, Move::pass(), 1.0, val.1));
         }
 
         self.state = MctsNodeState::Branch;
@@ -101,10 +107,15 @@ impl MctsNode {
         /*  find the max. */
         let n = self.edges.len();
         let mut ntot = 0;
+        let mut ptot = 0.0;
         for i in 0..n {
             ntot += self.edges[i].sims;
+            if self.edges[i].sims > 0 {
+                ptot += self.edges[i].sum;
+            }
         }
         let sqrt_n = (ntot as f32).sqrt();
+        let sqrt_p = FIRST_PLAY_URGENCY_CONSTANT * ptot.sqrt();
 
         let mut max_edge = n;
         let mut max_qu = 0.0;
@@ -118,7 +129,7 @@ impl MctsNode {
                     }
                 },
                 MctsNodeState::Leaf => {
-                    let qu = self.edges[i].qu(sqrt_n) + 1.0e4;
+                    let qu = self.edges[i].qu(sqrt_n);// - sqrt_p;
                     if qu > max_qu || max_edge == n {
                         max_edge = i;
                         max_qu = qu;
@@ -133,7 +144,7 @@ impl MctsNode {
         /*  increment the number of simulations of this edge. */
         self.edges[max_edge].sims += 1;
 
-        let delta = -match self.edges[max_edge].state() {
+        let delta = - match self.edges[max_edge].state() {
             MctsNodeState::Branch 
                 => self.edges[max_edge].to.select_and_backprop(e),
             MctsNodeState::Leaf
@@ -175,6 +186,23 @@ impl MctsNode {
             _ => {}
         }
     }
+
+    fn render<W : Write>(&self, w : &mut W, name : String) -> Result<(),io::Error> {
+
+        let mut edge_list = String::new();
+        writeln!(w, "\"{}\" -> \"{}\" [label=\"[V={}]\", loop left];", name, name ,self.value)?;
+
+        let ntot : usize = self.edges.iter().map(|e| e.sims).sum();
+
+        for (i, e) in self.edges.iter().enumerate() {
+            let next_name = format!("{}-{}", name, i);
+            writeln!(w, "\"{}\" -> \"{}\" [label=\"[M={},P={},N={},QU={}]\"];", name, next_name,e.action,e.prior,e.sims,e.qu((ntot as f32).sqrt()))?;
+            edge_list = format!("{} \"{}\"", edge_list, next_name);
+            e.to.render(w, next_name)?;
+        }
+
+        writeln!(w, "{{ rank = same;{} }};", edge_list)
+    }
 }
 
 /*  An edge from one node to the next given an action in the monte carlo tree
@@ -185,11 +213,12 @@ struct MctsEdge {
     sims    : usize,
     prior   : f32,
     sum     : f32,
+    init    : f32,
     to      : MctsNode,
 }
 
 impl MctsEdge {
-    fn new(position : &Board, action : Move, prior : f32) -> MctsEdge {
+    fn new(position : &Board, action : Move, prior : f32, init : f32) -> MctsEdge {
         let mut pos = *position;
         pos.f_do_move(action);
         MctsEdge {
@@ -197,6 +226,7 @@ impl MctsEdge {
             sims    : 0,
             prior   : prior,
             sum     : 0.0,
+            init    : init,
             to      : MctsNode::new(&pos),
         }
     }
@@ -205,7 +235,11 @@ impl MctsEdge {
     fn q(&self) -> f32 {
         /*  we add a small term to blow up the q value if this edge hasn't been
             explored yet. */
-        self.sum / (self.sims as f32 + 1.0e-32)
+        if self.sims == 0 {
+            self.init
+        } else {
+            self.sum / self.sims as f32
+        }
     }
 
     /// Computes the upper confidence bound for this edge.
@@ -241,17 +275,26 @@ impl<E : Evaluator> MctsTree<E> {
         }
     }
 
+    /// returns true when the root node is a solved node.
+    fn single_round(&mut self) -> bool {
+        match self.root.state {
+            MctsNodeState::Branch => {
+                self.root.select_and_backprop(&mut self.eval);
+                false
+            },
+            MctsNodeState::Leaf => {
+                self.root.expand_and_eval(&mut self.eval);
+                false
+            },
+            _ => {true}
+        }
+    }
+
     /// Runs a fixed number of simulations or until the game is solved.
     pub fn n_rounds(&mut self, n : usize) {
         for _ in 0..n {
-            match self.root.state {
-                MctsNodeState::Branch => {
-                    self.root.select_and_backprop(&mut self.eval);
-                },
-                MctsNodeState::Leaf => {
-                    self.root.expand_and_eval(&mut self.eval);
-                },
-                _ => {break;}
+            if self.single_round() {
+                break;
             }
         }
     }
@@ -261,14 +304,8 @@ impl<E : Evaluator> MctsTree<E> {
     pub fn time_rounds(&mut self, millis : u64) {
         let start = Instant::now();
         while start.elapsed() < Duration::from_millis(millis) {
-            match self.root.state {
-                MctsNodeState::Branch => {
-                    self.root.select_and_backprop(&mut self.eval);
-                },
-                MctsNodeState::Leaf => {
-                    self.root.expand_and_eval(&mut self.eval);
-                },
-                _ => {break;}
+            if self.single_round() {
+                break;
             }
         }
     }
@@ -322,12 +359,22 @@ impl<E : Evaluator> MctsTree<E> {
     pub fn set_temp(&mut self, temp : f32) {
         self.temp = temp;
     }
+
+    pub fn add_dirichlet_noise(&mut self) {
+
+    }
+
+    fn render_tree<W: Write>(&self, w : &mut W) -> Result<(),io::Error>{
+        writeln!(w, "digraph mcts_tree {{")?;
+        self.root.render(w, "root".to_string())?;
+        writeln!(w, "}}")
+    }
 }
 
 /// The MctsTree is an Evaluator itself (since it is an improvement operator on
 /// whatever evaluator is given to it).
 impl<E : Evaluator> Evaluator for MctsTree<E> {
-    fn evaluate(&mut self, input : &EvalInput) -> EvalOutput {
+    fn evaluate(&mut self, _input : &EvalInput) -> EvalOutput {
         let mut res = EvalOutput::new();
         let mut res64 = ([0.0f64; 64], 0.0);
 
@@ -378,7 +425,7 @@ impl<E : Evaluator> Evaluator for MctsTree<E> {
                 let tmp = (e.sims as f64).powf(1.0/self.temp as f64);
                 nsum += e.sims;
                 ntsum += tmp;
-                wsum += e.sims as f32 * e.sum;
+                wsum += e.sum;
 
                 res64.0[e.action.offset() as usize] = tmp;
             }
@@ -407,5 +454,27 @@ impl<E : Evaluator> Evaluator for MctsTree<E> {
     
     fn load(&mut self, filename : &Path) -> Result<(), Box<Error>>{
         self.eval.load(filename)
+    }
+}
+
+#[test]
+fn visualize_mcts_tree() {
+
+    let mut cnet = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
+    cnet.load(&Path::new("./data/iter001/CoinNet-checkpoint.best")).unwrap();
+
+    let mut evals = MctsTree::new(cnet);
+
+    let dir = Path::new("./data/graphviz/");
+
+    fs::create_dir_all(&dir);
+
+    for i in 0..100 {
+        eprintln!("Step {:3}", i);
+        evals.single_round();
+
+        let mut f = File::create(dir.join(&Path::new(&format!("step-{:03}.dot",i)))).unwrap();
+
+        evals.render_tree(&mut f).unwrap();
     }
 }

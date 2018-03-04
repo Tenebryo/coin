@@ -11,13 +11,15 @@ extern crate bincode;
 #[macro_use]
 extern crate clap;
 
-mod generate_positions;
-mod train_pattern;
-mod autotrain20;
+// mod generate_positions;
+// mod train_pattern;
+// mod autotrain20;
+mod wthor;
+mod supervised;
 
-use train_pattern::train_pattern;
-use generate_positions::generate_positions;
-use autotrain20::autotrain_20;
+// use train_pattern::train_pattern;
+// use generate_positions::generate_positions;
+// use autotrain20::autotrain_20;
 
 use bitboard::Board;
 use bitboard::Move;
@@ -143,5 +145,5 @@ fn main() {
     let learning_rate = matches.value_of("LEARNING_RATE").unwrap_or("0.001");
     let learning_rate = learning_rate.parse::<f32>().unwrap_or_else(|_| panic!("Learning rate must be a positive number!"));
 
-    autotrain_20(&output, positions, cost_cutoff, max_epochs, learning_rate, &masks);
+    // autotrain_20(&output, positions, cost_cutoff, max_epochs, learning_rate, &masks);
 }

@@ -1,0 +1,2 @@
+[workspace]
+members=["mcts","coin","bitboard", "pattern_engine", "trainer"]

@@ -12,7 +12,7 @@ use bitboard::MoveOrder;
 use bitboard::bit_ops::popcount_64;
 use bitboard::bit_ops::propagate;
 
-use pattern_engine::PatternSet;
+// use pattern_engine::PatternSet;
 
 use std::path::Path;
 use serde_json;
@@ -108,63 +108,63 @@ impl Heuristic for WLDHeuristic {
 }
 
 
-#[derive(Clone)]
-pub struct PatternHeuristic {
-    ps      : Box<PatternSet>,
-}
+// #[derive(Clone)]
+// pub struct PatternHeuristic {
+//     ps      : Box<PatternSet>,
+// }
 
-impl PatternHeuristic {
+// impl PatternHeuristic {
 
-    pub fn from_pattern_set(ps : Box<PatternSet>) -> PatternHeuristic {
-        PatternHeuristic {
-            ps
-        }
-    }
+//     pub fn from_pattern_set(ps : Box<PatternSet>) -> PatternHeuristic {
+//         PatternHeuristic {
+//             ps
+//         }
+//     }
 
-    pub fn file(filename : &Path) -> PatternHeuristic {
-        let mut f = File::open(filename).expect("Unable to read pattern file.");
+//     pub fn file(filename : &Path) -> PatternHeuristic {
+//         let mut f = File::open(filename).expect("Unable to read pattern file.");
 
-        let mut buf = String::new();
-        f.read_to_string(&mut buf).expect("Unable to read pattern file.");
+//         let mut buf = String::new();
+//         f.read_to_string(&mut buf).expect("Unable to read pattern file.");
 
-        let mut ps : PatternSet = serde_json::from_str(&buf).expect("Unable to parse pattern file.");
-        ps.trim(8*3);
+//         let mut ps : PatternSet = serde_json::from_str(&buf).expect("Unable to parse pattern file.");
+//         ps.trim(8*3);
 
-        PatternHeuristic {
-            ps : Box::new(ps),
-        }
-    }
+//         PatternHeuristic {
+//             ps : Box::new(ps),
+//         }
+//     }
 
-    pub fn random() -> PatternHeuristic {
-        let mut masks = vec![];
+//     pub fn random() -> PatternHeuristic {
+//         let mut masks = vec![];
 
-        let mut r = rand::thread_rng();
+//         let mut r = rand::thread_rng();
 
-        for i in 0..12 {
-            let mut m : u64= 0;
-            while popcount_64(m) != 8 {
-                m |= 1 << (r.gen::<u8>() % 64);
-            }
+//         for i in 0..12 {
+//             let mut m : u64= 0;
+//             while popcount_64(m) != 8 {
+//                 m |= 1 << (r.gen::<u8>() % 64);
+//             }
 
-            masks.push(m);
-        }
+//             masks.push(m);
+//         }
 
-        PatternHeuristic {
-            ps      : Box::new(PatternSet::from_masks(&masks)),
-        }
-    }
-}
+//         PatternHeuristic {
+//             ps      : Box::new(PatternSet::from_masks(&masks)),
+//         }
+//     }
+// }
 
-impl Heuristic for PatternHeuristic {
-    fn evaluate(&self, b : Board, t : Turn) -> i32 {
-        let p = b.pieces();
-        self.ps.eval(p.0, p.1) as i32
-    }
+// impl Heuristic for PatternHeuristic {
+//     fn evaluate(&self, b : Board, t : Turn) -> i32 {
+//         let p = b.pieces();
+//         self.ps.eval(p.0, p.1) as i32
+//     }
     
-    fn order_moves(&self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
+//     fn order_moves(&self, b : Board, n : usize, rmvs : &MoveList, omvs : &mut MoveOrder) {
     
-    }
-}
+//     }
+// }
 
 
 
