@@ -454,6 +454,7 @@ pub fn fast_min(mut a : u32, b : u32) -> u32 {
 ///x -> the offset of the move 
 ///p -> the player's stones
 ///o -> the opponent's stones
+#[cfg(target_arch = "x86_64")] 
 pub fn fast_do_move(m : u8, x : u8, y : u8, p : u64, o : u64) -> u64 {
     #![allow(unused_assignments)]
 
@@ -518,4 +519,119 @@ pub fn fast_do_move(m : u8, x : u8, y : u8, p : u64, o : u64) -> u64 {
     }
 
     (mh | mv | md | ma) as u64
+}
+
+/// 32 bit version of the above, for compatibility. Still only works on x86
+///x -> the offset of the move 
+///p -> the player's stones
+///o -> the opponent's stones
+#[cfg(target_arch = "x86")] 
+pub fn fast_do_move(m : u8, x : u8, y : u8, p : u64, o : u64) -> u64 {
+    #![allow(unused_assignments)]
+
+    use std::cmp;
+    let mut ph0 : u64 = 0;
+    let mut pv0 : u64 = 0;
+    let mut pd0 : u64 = 0;
+    let mut pa0 : u64 = 0;
+
+    let mut ph1 : u64 = 0;
+    let mut pv1 : u64 = 0;
+    let mut pd1 : u64 = 0;
+    let mut pa1 : u64 = 0;
+
+    let mut oh0 : u64 = 0;
+    let mut ov0 : u64 = 0;
+    let mut od0 : u64 = 0;
+    let mut oa0 : u64 = 0;
+
+    let mut oh1 : u64 = 0;
+    let mut ov1 : u64 = 0;
+    let mut od1 : u64 = 0;
+    let mut oa1 : u64 = 0;
+
+    // let mut ofh = 0;
+    // let mut ofv = 0;
+    // let mut ofd = 0;
+    // let mut ofa = 0;
+
+    let mut fh = 0;
+    let mut fv = 0;
+    let mut fd = 0;
+    let mut fa = 0;
+
+    let mut mh0 : u64 = 0;
+    let mut mv0 : u64 = 0;
+    let mut md0 : u64 = 0;
+    let mut ma0 : u64 = 0;
+
+    let mut mh1 : u64 = 0;
+    let mut mv1 : u64 = 0;
+    let mut md1 : u64 = 0;
+    let mut ma1 : u64 = 0;
+
+    let masks = LINES[m as usize];
+    const NOT_EDGES_H : u64 = !0x8181818181818181;
+    const NOT_EDGES_V : u64 = !0xFF000000000000FF;
+    const NOT_EDGES_D : u64 = !0xFF818181818181FF;
+
+    unsafe {
+        asm!("PEXT $2, $1, $0" : "=r"(ph0) : "r"(p) , "r"(masks[0]));
+        asm!("PEXT $2, $1, $0" : "=r"(pv0) : "r"(p) , "r"(masks[1]));
+        asm!("PEXT $2, $1, $0" : "=r"(pd0) : "r"(p) , "r"(masks[2]));
+        asm!("PEXT $2, $1, $0" : "=r"(pa0) : "r"(p) , "r"(masks[3]));
+
+        asm!("PEXT $2, $1, $0" : "=r"(ph1) : "r"(p >> 32) , "r"(masks[0] >> 32));
+        asm!("PEXT $2, $1, $0" : "=r"(pv1) : "r"(p >> 32) , "r"(masks[1] >> 32));
+        asm!("PEXT $2, $1, $0" : "=r"(pd1) : "r"(p >> 32) , "r"(masks[2] >> 32));
+        asm!("PEXT $2, $1, $0" : "=r"(pa1) : "r"(p >> 32) , "r"(masks[3] >> 32));
+
+        asm!("PEXT $2, $1, $0" : "=r"(oh0) : "r"(o) , "r"(masks[0] & NOT_EDGES_H));
+        asm!("PEXT $2, $1, $0" : "=r"(ov0) : "r"(o) , "r"(masks[1] & NOT_EDGES_V));
+        asm!("PEXT $2, $1, $0" : "=r"(od0) : "r"(o) , "r"(masks[2] & NOT_EDGES_D));
+        asm!("PEXT $2, $1, $0" : "=r"(oa0) : "r"(o) , "r"(masks[3] & NOT_EDGES_D));
+
+        asm!("PEXT $2, $1, $0" : "=r"(oh0) : "r"(o >> 32) , "r"((masks[0] & NOT_EDGES_H) >> 32));
+        asm!("PEXT $2, $1, $0" : "=r"(ov0) : "r"(o >> 32) , "r"((masks[1] & NOT_EDGES_V) >> 32));
+        asm!("PEXT $2, $1, $0" : "=r"(od0) : "r"(o >> 32) , "r"((masks[2] & NOT_EDGES_D) >> 32));
+        asm!("PEXT $2, $1, $0" : "=r"(oa0) : "r"(o >> 32) , "r"((masks[3] & NOT_EDGES_D) >> 32));
+    }
+
+    let x1 = x as usize;
+    let y1 = y as usize;
+    let x2 = (if x < y {x} else {y}) as usize;
+    let y2 = (if 7-x < y {7-x} else {y}) as usize;
+
+    const SHIFTS_P : [u64; 15] = [1,2,3,4, 4,4,4,4, 3,2,1,0, 0,0,0];
+
+    const SHIFTS_O : [u64; 15] = [0,0,1,2,3,3,3,3,2,1,0,0,0,0,0];
+
+    let mut ph : u64 = ph0 | ph1;
+    let mut pv : u64 = pv0 | (pv1 << 3);
+    let mut pd : u64 = pd0 | (pd1 << SHIFTS_P[7-x1+y1]);
+    let mut pa : u64 = pa0 | (pa1 << SHIFTS_P[x1+y1]);
+
+    let mut oh : u64 = oh0 | oh1;
+    let mut ov : u64 = ov0 | (ov1 << 3);
+    let mut od : u64 = od0 | (od1 << SHIFTS_O[7-x1+y1]);
+    let mut oa : u64 = oa0 | (oa1 << SHIFTS_O[x1+y1]);
+
+    fh |= FLIP[x1][(OUTFLANK[x1][oh as usize] & ph as u8) as usize];
+    fv |= FLIP[y1][(OUTFLANK[y1][ov as usize] & pv as u8) as usize];
+    fd |= FLIP[x2][(OUTFLANK[x2][od as usize] & pd as u8) as usize];
+    fa |= FLIP[y2][(OUTFLANK[y2][oa as usize] & pa as u8) as usize];
+
+    unsafe {
+        asm!("PDEP $2, $1, $0" : "=r"(mh0) : "r"(fh as u64) , "r"(masks[0]));
+        asm!("PDEP $2, $1, $0" : "=r"(mv0) : "r"(fv as u64) , "r"(masks[1]));
+        asm!("PDEP $2, $1, $0" : "=r"(md0) : "r"(fd as u64) , "r"(masks[2]));
+        asm!("PDEP $2, $1, $0" : "=r"(ma0) : "r"(fa as u64) , "r"(masks[3]));
+
+        asm!("PDEP $2, $1, $0" : "=r"(mh1) : "r"(fh as u64 >> 32) , "r"(masks[0] >> 32));
+        asm!("PDEP $2, $1, $0" : "=r"(mv1) : "r"(fv as u64 >> 32) , "r"(masks[1] >> 32));
+        asm!("PDEP $2, $1, $0" : "=r"(md1) : "r"(fd as u64 >> 32) , "r"(masks[2] >> 32));
+        asm!("PDEP $2, $1, $0" : "=r"(ma1) : "r"(fa as u64 >> 32) , "r"(masks[3] >> 32));
+    }
+
+    (mh0 | mv0 | md0 | ma0  |  (mh1 << 32) | (mv1 << 32) | (md1 << 32) | (ma1 << 32)) as u64
 }

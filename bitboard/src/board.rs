@@ -93,6 +93,8 @@ impl Move {
 
 #[inline]
 pub fn empty_movelist() -> MoveList {
+    use std::mem;
+    // mem::uninitialized()
     [Move::null(); MAX_MOVES]
 }
 #[inline]
