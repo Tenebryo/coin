@@ -627,10 +627,10 @@ pub fn fast_do_move(m : u8, x : u8, y : u8, p : u64, o : u64) -> u64 {
         asm!("PDEP $2, $1, $0" : "=r"(md0) : "r"(fd as u64) , "r"(masks[2]));
         asm!("PDEP $2, $1, $0" : "=r"(ma0) : "r"(fa as u64) , "r"(masks[3]));
 
-        asm!("PDEP $2, $1, $0" : "=r"(mh1) : "r"(fh as u64 >> 32) , "r"(masks[0] >> 32));
-        asm!("PDEP $2, $1, $0" : "=r"(mv1) : "r"(fv as u64 >> 32) , "r"(masks[1] >> 32));
-        asm!("PDEP $2, $1, $0" : "=r"(md1) : "r"(fd as u64 >> 32) , "r"(masks[2] >> 32));
-        asm!("PDEP $2, $1, $0" : "=r"(ma1) : "r"(fa as u64 >> 32) , "r"(masks[3] >> 32));
+        asm!("PDEP $2, $1, $0" : "=r"(mh1) : "r"(fh as u64) ,                       "r"(masks[0] >> 32));
+        asm!("PDEP $2, $1, $0" : "=r"(mv1) : "r"(fv as u64 >> 4) ,                  "r"(masks[1] >> 32));
+        asm!("PDEP $2, $1, $0" : "=r"(md1) : "r"(fd as u64 >> SHIFTS_P[7-x1+y1]) ,  "r"(masks[2] >> 32));
+        asm!("PDEP $2, $1, $0" : "=r"(ma1) : "r"(fa as u64 >> SHIFTS_P[x1+y1]) ,    "r"(masks[3] >> 32));
     }
 
     (mh0 | mv0 | md0 | ma0  |  (mh1 << 32) | (mv1 << 32) | (md1 << 32) | (ma1 << 32)) as u64
