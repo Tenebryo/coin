@@ -1,0 +1,4 @@
+{
+    "model_file" : "./params/CoinNet_model.pb",
+    "heuristic_directory" : "./params/CoinNet-170"
+}

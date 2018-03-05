@@ -15,12 +15,15 @@ pub mod common;
 
 pub mod players;
 pub mod opening;
+pub mod player_cfg;
 
 use players::*;
 
 use std::env;
 use std::io;
 use std::process;
+
+use std::path::Path;
 
 use bitboard::Board;
 use bitboard::Move;
@@ -43,6 +46,7 @@ fn main() {
         }
     };
     
+    let coincfg = player_cfg::CoinCfg::from_path(&Path::new("./coin.json"));
     
     let mut ms_left = 0;
     let mut b = Board::new();
@@ -53,7 +57,7 @@ fn main() {
     
     cerrln!("{}", b);
     
-    let mut p = MctsPlayer::new(t);
+    let mut p = MctsPlayer::new(t, &Path::new(&coincfg.model_file), &Path::new(&coincfg.heuristic_directory));
     
     println!("Init done");
     

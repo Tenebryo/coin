@@ -1,13 +1,14 @@
 use players::*;
+use std::path::Path;
 
 pub struct MctsPlayer {
     mcts_m  : mcts::MctsTree<CoinNet>,
 }
 
 impl MctsPlayer {
-    pub fn new(s : Turn) -> MctsPlayer {
-        let mut net = CoinNet::new(&Path::new("./mcts/data/CoinNet_model.pb")).unwrap();
-        net.load(Path::new("./mcts/data/iter170/CoinNet-checkpoint.2")).unwrap();
+    pub fn new(_s : Turn, model_path : &Path, params_path : &Path) -> MctsPlayer {
+        let mut net = CoinNet::new(model_path).unwrap();
+        net.load(params_path).unwrap();
 
         let mut mcts_m = MctsTree::new(net);
         mcts_m.set_temp(1.0);
