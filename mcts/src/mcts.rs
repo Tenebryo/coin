@@ -312,8 +312,6 @@ impl MctsNode {
                 return (Move::null(), 1064);
             }
             
-            let v = -v;
-            
             //update best move
             if g < v { g = v; bm = mvs[idx[i]]; }
 
@@ -523,8 +521,17 @@ impl<E : Evaluator> MctsTree<E> {
         mvs
     }
     
-    pub fn solve_endgame(&self, start : Instant, ms_left : Duration, timeout : &mut bool) -> (Move, i32) {
+    pub fn solve_endgame(&mut self, start : Instant, ms_left : Duration, timeout : &mut bool) -> (Move, i32) {
         let mut killers = [[0; 64];60];
+        
+        // ensure the root node is always expanded.
+        match self.root.state {
+            MctsNodeState::Leaf | MctsNodeState::Invalid => {
+                self.root.expand_and_eval(&mut self.eval);
+            },
+            _ => ()
+        }
+        
         let (bm, v) = self.root.solve_endgame(0, 64, &mut killers, start, ms_left, timeout, true);
         
         (bm, v)
@@ -662,7 +669,7 @@ fn negamax_opt (
 ) -> i32 {
 
     if bb.is_done() {
-        return (bb.piece_diff() as i32);
+        return (bb.piece_diff() as i32).signum();
     }
     
     //eprintln!("{:?} {:?}", bb.pieces(), bb.mobility());
@@ -812,25 +819,28 @@ fn solve_endgame_test() {
 
     let mut evals = MctsTree::new(cnet);
 
-    let mut b = Board::new();
     
     let mut mvs = empty_movelist();
     let mut r = rand::thread_rng();
     
-    
-    while b.total_empty() >= 18 {
-        if b.is_done() {
-            b = Board::new();
+    for d in 10..20 {
+        let mut b = Board::new();
+        while b.total_empty() >= d {
+            if b.is_done() {
+                b = Board::new();
+            }
+            
+            let n = b.get_moves(&mut mvs) as usize;
+            
+            let m = r.choose(&mvs[..n]).unwrap();
+            
+            b.f_do_move(*m);
         }
         
-        let n = b.get_moves(&mut mvs) as usize;
-        
-        let m = r.choose(&mvs[..n]).unwrap();
-        
-        b.f_do_move(*m);
+        evals.prune_board(b);
+        evals.single_round();
+        let start = Instant::now();
+        evals.solve_endgame(start, Duration::from_millis(1000_000), &mut false);
+        eprintln!("Depth: {:2} Elapsed: {:?}", d, start.elapsed());
     }
-    
-    evals.prune_board(b);
-    evals.single_round();
-    evals.solve_endgame(Instant::now(), Duration::from_millis(10_000), &mut false);
 }

@@ -27,15 +27,18 @@ impl Player for MctsPlayer {
         let total = pieces.0 + pieces.1;
         let empty = (64 - total) as u64;
         
-        let solve_depth = 12;
+        let solve_depth = 16;
         
 
+        let ttime = Instant::now();
         let mut start = Instant::now();
 
         let mut moves = empty_movelist();
         let n = b.get_moves(&mut moves) as usize;
 
         eprintln!("[COIN] {} nodes in the tree.", self.mcts_m.count_sims());
+        
+        eprintln!("[COIN] {} ms remaining.", ms_left);
         
         let pruned = self.mcts_m.prune_board(b.clone());
 
@@ -46,16 +49,18 @@ impl Player for MctsPlayer {
         let mut out_move = Move::null();
         
         if empty < solve_depth {
-            ms_left /= 2;
             eprintln!("[COIN] Attempting to solve the game.");
-            let (m,s) = self.mcts_m.solve_endgame(start, Duration::from_millis(3*ms_left), &mut timeout);
+            let (m,s) = self.mcts_m.solve_endgame(start, Duration::from_millis(ms_left/4), &mut timeout);
         
+            ms_left *= 3;
+            ms_left /= 4;
+            
             if timeout {
                 eprintln!("[COIN] Timeout on endgame solver, researching with MCTS.");
                 start = Instant::now();
             } else {
                 out_move = m;
-                eprintln!("[COIN] Solved game! Result: {}", s);
+                eprintln!("[COIN] Solved game! Result: {} {}", s, m);
             }
         }
         
@@ -69,7 +74,14 @@ impl Player for MctsPlayer {
 
             let EvalOutput(output, score) = self.mcts_m.evaluate(&Board::new());
             eprintln!("[COIN] Score={:.3}", score);
-
+            
+            eprint!("[COIN] Main Line:");
+            let main_line = self.mcts_m.scan(4);
+            
+            for mv in main_line {
+                eprint!(" {}", mv); 
+            }
+            eprintln!("...");
 
             let mut mi = 0;
             let mut mx = output[moves[0].offset() as usize];
@@ -100,6 +112,15 @@ impl Player for MctsPlayer {
         
         eprintln!("[COIN] Playing {} ({} nodes remaining)", out_move, self_pruned);
         
+        let elapsed_time = {
+            let e = ttime.elapsed();
+            let s = e.as_secs();
+            let ns = e.subsec_nanos();
+            
+            s * 1000 + ns as u64 / 1_000_000
+        };
+        
+        eprintln!("[COIN] Turn took {} ms.", elapsed_time);
 
         out_move
     }
