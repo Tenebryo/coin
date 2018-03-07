@@ -1,6 +1,8 @@
 use players::*;
 use std::path::Path;
 
+use std::time::*;
+
 pub struct MctsPlayer {
     mcts_m  : mcts::MctsTree<CoinNet>,
 }
@@ -20,42 +22,72 @@ impl MctsPlayer {
 
 impl Player for MctsPlayer {
     
-    fn do_move(&mut self, b : Board, ms_left : u64) -> Move {
+    fn do_move(&mut self, b : Board, mut ms_left : u64) -> Move {
         let pieces = b.count_pieces();
         let total = pieces.0 + pieces.1;
         let empty = (64 - total) as u64;
         
+        let solve_depth = 12;
+        
 
-        let start = Instant::now();
-        let alloc_time = (ms_left as f32 * TIME_ALLOC[total as usize]) as u64;
+        let mut start = Instant::now();
 
         let mut moves = empty_movelist();
         let n = b.get_moves(&mut moves) as usize;
 
-        self.mcts_m.prune_board(b.clone());
+        eprintln!("[COIN] {} nodes in the tree.", self.mcts_m.count_sims());
+        
+        let pruned = self.mcts_m.prune_board(b.clone());
 
-        eprintln!("[COIN] Searching...");
-        self.mcts_m.time_rounds(alloc_time);
-        eprintln!("[COIN] Done!");
+        eprintln!("[COIN] Saved {} Nodes.", pruned);
 
-        let EvalOutput(output, score) = self.mcts_m.evaluate(&Board::new());
-        eprintln!("[COIN] Score={:.3}", score);
-
-
-        let mut mi = 0;
-        let mut mx = output[moves[0].offset() as usize];
-
-        for i in 1..n {
-            let tmp = output[moves[i].offset() as usize];
-            if mx < tmp {
-                mx = tmp;
-                mi = i;
+        let mut timeout = false;
+        
+        let mut out_move = Move::null();
+        
+        if empty < solve_depth {
+            ms_left /= 2;
+            eprintln!("[COIN] Attempting to solve the game.");
+            let (m,s) = self.mcts_m.solve_endgame(start, Duration::from_millis(3*ms_left), &mut timeout);
+        
+            if timeout {
+                eprintln!("[COIN] Timeout on endgame solver, researching with MCTS.");
+                start = Instant::now();
+            } else {
+                out_move = m;
+                eprintln!("[COIN] Solved game! Result: {}", s);
             }
         }
+        
+        let alloc_time = (ms_left as f32 * TIME_ALLOC[total as usize]) as u64;
 
-        let mut out_move = moves[mi];
+        if timeout || empty >= solve_depth {
+            eprintln!("[COIN] Searching...");
+            let expansions = self.mcts_m.time_rounds(alloc_time);
+            eprintln!("[COIN] Done!");
+            eprintln!("[COIN] Generated {} Nodes. ({} n/s)", expansions, expansions as f32 * 1000.0 / alloc_time as f32);
+
+            let EvalOutput(output, score) = self.mcts_m.evaluate(&Board::new());
+            eprintln!("[COIN] Score={:.3}", score);
+
+
+            let mut mi = 0;
+            let mut mx = output[moves[0].offset() as usize];
+
+            for i in 1..n {
+                let tmp = output[moves[i].offset() as usize];
+                if mx < tmp {
+                    mx = tmp;
+                    mi = i;
+                }
+            }
+            
+            out_move = moves[mi];
+        }
+
 
         if out_move.is_null() {
+            eprintln!("[COIN] Something went wrong. Choosing random move.");
             let mut ml = empty_movelist();
             let n = b.get_moves(&mut ml) as usize;
 
@@ -63,6 +95,11 @@ impl Player for MctsPlayer {
             use rand::Rng;
             out_move = ml[rand::thread_rng().gen::<usize>()%n];
         }
+
+        let self_pruned = self.mcts_m.prune(out_move);
+        
+        eprintln!("[COIN] Playing {} ({} nodes remaining)", out_move, self_pruned);
+        
 
         out_move
     }

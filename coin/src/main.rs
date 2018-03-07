@@ -55,7 +55,7 @@ fn main() {
         b.f_do_move(Move::pass());
     }
     
-    cerrln!("{}", b);
+    cerrln!("{:?}", b);
     
     let mut p = MctsPlayer::new(t, &Path::new(&coincfg.model_file), &Path::new(&coincfg.heuristic_directory));
     
@@ -96,7 +96,7 @@ fn main() {
                 panic!(e)
             }
         }
-        cerrln!("\n{}", b);
+        cerrln!("\n{:?}", b);
         
         // make my move
         let m = p.do_move(b.copy(), ms_left as u64);
@@ -111,7 +111,7 @@ fn main() {
             println!("{} {}", m.x(), m.y());
         }
         
-        cerrln!("\n{}", b);
+        cerrln!("\n{:?}", b);
     }
     
     cerrln!("RESULT: {}/{}", b.count_pieces().1, b.count_pieces().0);

@@ -38,14 +38,14 @@ mod tests {
     #[test]
     fn restore_test() {
 
-        let mut net = eval::CoinNet::new("./data/CoinNet_model.pb").unwrap();
+        let mut net = eval::CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
-        net.load(Path::new("./data/iter000/CoinNet-checkpoint.best.index")).unwrap();
+        net.load(&Path::new("./data/iter000/CoinNet-checkpoint.best.index")).unwrap();
     }
 
     #[test]
     fn tensorflow_throughput_test() {
-        let mut net = eval::CoinNet::new("./data/CoinNet_model.pb").unwrap();
+        let mut net = eval::CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
         // net.load(Path::new("./data/iter014/CoinNet-checkpoint.best.index")).unwrap();
 

@@ -94,8 +94,8 @@ impl Move {
 #[inline]
 pub fn empty_movelist() -> MoveList {
     use std::mem;
-    // mem::uninitialized()
-    [Move::null(); MAX_MOVES]
+    unsafe{mem::uninitialized()}
+    //[Move::null(); MAX_MOVES]
 }
 #[inline]
 pub fn empty_moveorder() -> MoveOrder {
@@ -301,7 +301,7 @@ impl Board {
         self.ps ^= flipped;
         self.os ^= flipped;
 
-        self.os ^= m.mask();
+        self.ps ^= m.mask();
 
         self.update_moves_fast();
 

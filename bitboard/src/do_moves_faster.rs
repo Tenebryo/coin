@@ -3778,7 +3778,7 @@ const MOVE_FN : [fn(u64, u64) -> u64; 256] = [
 ];
 
 pub fn do_move(m : u8, ps : u64, os : u64) -> u64 {
-    MOVE_FN[(m as usize) as usize ](ps, os) ^ (1 << m)
+    MOVE_FN[(m as usize) as usize ](ps, os)
 }
 
 
