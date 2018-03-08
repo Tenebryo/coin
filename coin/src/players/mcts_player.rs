@@ -27,7 +27,7 @@ impl Player for MctsPlayer {
         let total = pieces.0 + pieces.1;
         let empty = (64 - total) as u64;
         
-        let solve_depth = 16;
+        let solve_depth = 20;
         
 
         let ttime = Instant::now();
