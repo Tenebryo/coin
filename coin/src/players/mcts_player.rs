@@ -68,7 +68,8 @@ impl Player for MctsPlayer {
 
         if timeout || empty >= solve_depth {
             eprintln!("[COIN] Searching...");
-            let expansions = self.mcts_m.time_rounds(alloc_time);
+            //let expansions = self.mcts_m.time_rounds(alloc_time);
+            let expansions = 100; self.mcts_m.n_rounds(200);
             eprintln!("[COIN] Done!");
             eprintln!("[COIN] Generated {} Nodes. ({} n/s)", expansions, expansions as f32 * 1000.0 / alloc_time as f32);
 

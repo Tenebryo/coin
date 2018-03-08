@@ -113,7 +113,7 @@ impl PonderingMctsPlayer {
                             eprint!(" {}", mv); 
                         }
                         eprintln!("...");
-                        
+                        last_count = 0;                        
                         m_queue_tx.send(PonderingMessage::SendMove(moves[mi]),).unwrap();
                     },
                     _ => {},
