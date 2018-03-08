@@ -57,7 +57,7 @@ fn main() {
     
     cerrln!("{:?}", b);
     
-    let mut p = MctsPlayer::new(t, &Path::new(&coincfg.model_file), &Path::new(&coincfg.heuristic_directory));
+    let mut p = PonderingMctsPlayer::new(t, coincfg.model_file, coincfg.heuristic_directory);
     
     println!("Init done");
     

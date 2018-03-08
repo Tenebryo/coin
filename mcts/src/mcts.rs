@@ -404,7 +404,7 @@ impl<E : Evaluator> MctsTree<E> {
     }
 
     /// returns true when the root node is a solved node.
-    fn single_round(&mut self) -> bool {
+    pub fn single_round(&mut self) -> bool {
         match self.root.state {
             MctsNodeState::Branch => {
                 self.root.select_and_backprop(&mut self.eval);
