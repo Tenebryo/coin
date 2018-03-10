@@ -261,32 +261,32 @@ impl Board {
         msk
     }
 
-    #[cfg(target_arch = "x86_64")] 
-    pub fn f_do_move(&mut self, m : Move) -> u64 {
+    // #[cfg(target_arch = "x86_64")] 
+    // pub fn f_do_move(&mut self, m : Move) -> u64 {
 
-        use do_moves_fast::fast_do_move;
+    //     use do_moves_fast::fast_do_move;
 
-        // if m.is_pass() || m.is_null() {
-        //     self.swap();
-        //     return 0;
-        // }
+    //     // if m.is_pass() || m.is_null() {
+    //     //     self.swap();
+    //     //     return 0;
+    //     // }
 
-        let flipped = fast_do_move(m.data , m.x(), m.y(), self.ps, self.os);
+    //     let flipped = fast_do_move(m.data , m.x(), m.y(), self.ps, self.os);
 
-        self.ps ^= flipped;
-        self.os ^= flipped;
+    //     self.ps ^= flipped;
+    //     self.os ^= flipped;
 
-        self.os ^= m.mask();
+    //     self.os ^= m.mask();
 
-        self.update_moves_fast();
+    //     self.update_moves_fast();
 
-        self.swap();
+    //     self.swap();
 
-        flipped
-    }
+    //     flipped
+    // }
     
 
-    #[cfg(target_arch = "x86")] 
+    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))] 
     pub fn f_do_move(&mut self, m : Move) -> u64 {
 
         use do_moves_faster;
