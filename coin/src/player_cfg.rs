@@ -14,7 +14,8 @@ pub enum Algorithm {
     BNS,
 }
 
-fn solve_depth() -> u8 {18}
+fn mcts_rounds() -> usize{200}
+fn solve_depth() -> u8 {21}
 
 #[derive(Serialize, Deserialize)]
 pub struct CoinCfg {
@@ -23,6 +24,8 @@ pub struct CoinCfg {
     pub heuristic_directory : String,
     #[serde(default = "solve_depth")]
     pub solve_depth : u8,
+    #[serde(default = "mcts_rounds")]
+    pub mcts_rounds : usize,
 }
 
 impl CoinCfg {

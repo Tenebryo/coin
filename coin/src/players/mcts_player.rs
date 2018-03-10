@@ -5,10 +5,11 @@ use std::time::*;
 
 pub struct MctsPlayer {
     mcts_m  : mcts::MctsTree<CoinNet>,
+    rounds  : usize,
 }
 
 impl MctsPlayer {
-    pub fn new(_s : Turn, model_path : &Path, params_path : &Path) -> MctsPlayer {
+    pub fn new(_s : Turn, model_path : &Path, params_path : &Path, rounds : usize) -> MctsPlayer {
         let mut net = CoinNet::new(model_path).unwrap();
         net.load(params_path).unwrap();
 
@@ -16,6 +17,7 @@ impl MctsPlayer {
         mcts_m.set_temp(1.0);
         MctsPlayer {
             mcts_m,
+            rounds,
         }
     }
 }
@@ -69,7 +71,7 @@ impl Player for MctsPlayer {
         if timeout || empty >= solve_depth {
             eprintln!("[COIN] Searching...");
             //let expansions = self.mcts_m.time_rounds(alloc_time);
-            let expansions = 100; self.mcts_m.n_rounds(200);
+            let expansions = self.rounds; self.mcts_m.n_rounds(self.rounds);
             eprintln!("[COIN] Done!");
             eprintln!("[COIN] Generated {} Nodes. ({} n/s)", expansions, expansions as f32 * 1000.0 / alloc_time as f32);
 
