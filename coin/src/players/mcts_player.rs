@@ -2,6 +2,9 @@ use players::*;
 use std::path::Path;
 
 use std::time::*;
+use std::fs;
+
+use glob::*;
 
 pub struct MctsPlayer {
     mcts_m  : mcts::MctsTree<CoinNet>,
@@ -10,6 +13,20 @@ pub struct MctsPlayer {
 
 impl MctsPlayer {
     pub fn new(_s : Turn, model_path : &Path, params_path : &Path, rounds : usize) -> MctsPlayer {
+
+        let tmp_dir = &Path::new("/tmp/coin_othello/");
+        fs::create_dir_all(tmp_dir).unwrap();
+
+        let model_filename = model_path.file_name().expect("Error getting graph file name.");
+
+        fs::copy(model_path, tmp_dir.join(model_filename)).unwrap();
+        let glob_path = format!("{}*", params_path.display());
+        for path in glob(&glob_path).expect("Failed to find parameter files.") {
+            if let Ok(path) = path {
+                fs::copy(path.clone(), tmp_dir.join(path.file_name().unwrap())).unwrap();
+            }
+        }
+
         let mut net = CoinNet::new(model_path).unwrap();
         net.load(params_path).unwrap();
 

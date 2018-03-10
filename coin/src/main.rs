@@ -10,6 +10,9 @@ extern crate serde;
 extern crate serde_json;
 extern crate rand;
 
+extern crate glob;
+
+
 #[macro_use]
 pub mod common;
 
@@ -30,7 +33,6 @@ use bitboard::Move;
 use bitboard::Turn;
 
 use players::*;
-
 
 fn main() {
     

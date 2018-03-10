@@ -1,4 +1,5 @@
 {
     "model_file" : "./params/CoinNet_model.pb",
-    "heuristic_directory" : "./params/CoinNet-170"
+    "heuristic_directory" : "./params/CoinNet-170",
+    "mcts_depth": 200
 }

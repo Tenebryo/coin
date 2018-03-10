@@ -8,7 +8,7 @@ extern crate serde_derive;
 pub mod bit_ops;
 pub mod board;
 mod find_moves_fast;
-mod do_moves_fast;
+// mod do_moves_fast;
 mod do_moves_faster;
 
 pub use board::Board;
