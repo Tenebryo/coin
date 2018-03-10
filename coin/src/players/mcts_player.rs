@@ -18,6 +18,7 @@ impl MctsPlayer {
         fs::create_dir_all(tmp_dir).unwrap();
 
         let model_filename = model_path.file_name().expect("Error getting graph file name.");
+        let params_filename = params_path.file_name().expect("Error getting graph file name.");
 
         fs::copy(model_path, tmp_dir.join(model_filename)).unwrap();
         let glob_path = format!("{}*", params_path.display());
@@ -26,6 +27,9 @@ impl MctsPlayer {
                 fs::copy(path.clone(), tmp_dir.join(path.file_name().unwrap())).unwrap();
             }
         }
+
+        let model_path = &tmp_dir.join(model_filename);
+        let params_path = &tmp_dir.join(params_filename);
 
         let mut net = CoinNet::new(model_path).unwrap();
         net.load(params_path).unwrap();
