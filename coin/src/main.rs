@@ -11,6 +11,7 @@ extern crate serde_json;
 extern crate rand;
 
 extern crate glob;
+extern crate indexmap;
 
 
 #[macro_use]

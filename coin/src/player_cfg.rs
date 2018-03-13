@@ -6,6 +6,8 @@ use serde_json;
 use std::path::Path;
 use std::fs::File;
 use std::io::prelude::*;
+use std::thread;
+use std::time::*;
 
 pub enum Algorithm {
     MCTS,
@@ -37,7 +39,9 @@ impl CoinCfg {
     pub fn from_path(path : &Path) -> CoinCfg {
         let mut buf = vec![];
 
-        File::open(path).unwrap().read_to_end(&mut buf).unwrap();
+        while let Err(_) = File::open(path).map(|mut fd| fd.read_to_end(&mut buf)) {
+            thread::sleep(Duration::from_millis(100));
+        };
 
         let config : CoinCfg = serde_json::from_slice(&buf).unwrap();
 

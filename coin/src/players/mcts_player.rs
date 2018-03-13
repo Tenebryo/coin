@@ -1,5 +1,6 @@
 use players::*;
 use std::path::Path;
+use std::thread;
 
 use std::time::*;
 use std::fs;
@@ -22,12 +23,16 @@ impl MctsPlayer {
         let params_filename = params_path.file_name().expect("Error getting graph file name.");
 
         eprintln!("[COIN] Copying {:?} to {:?}", model_path, tmp_dir);
-        fs::copy(model_path, tmp_dir.join(model_filename)).unwrap();
+        while let Err(_) = fs::copy(model_path, tmp_dir.join(model_filename)) {
+            thread::sleep(Duration::from_millis(100));
+        }
         let glob_path = format!("{}*", params_path.display());
         for path in glob(&glob_path).expect("Failed to find parameter files.") {
             if let Ok(path) = path {
                 eprintln!("[COIN] Copying {:?} to {:?}", path, tmp_dir);
-                fs::copy(path.clone(), tmp_dir.join(path.file_name().unwrap())).unwrap();
+                while let Err(_) = fs::copy(path.clone(), tmp_dir.join(path.file_name().unwrap())) {
+                    thread::sleep(Duration::from_millis(100));
+                }
             }
         }
 

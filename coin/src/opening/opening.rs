@@ -14,6 +14,18 @@ use bitboard::Turn;
 ///(16 bytes: hash table array size (n))
 ///n * (20 bytes: (1 byte used)(16 bytes: board position, normalized)(1 byte: white best move)(1 byte: black best move))
 ///
+
+
+struct OpeningNode {
+    hash_val_1      : u32,
+    hash_val_2      : u32,
+    black_minimax   : i16,
+    white_minimax   : i16,
+    best_alt_move   : u16,
+    alt_score       : i16,
+    flags           : u16,
+}
+
 pub struct Opening {
     file    : File,
 }
