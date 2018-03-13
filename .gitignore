@@ -16,3 +16,5 @@ data/
 releases/
 logs/
 params/
+
+**/*.dll
