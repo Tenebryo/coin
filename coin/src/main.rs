@@ -1,7 +1,7 @@
 extern crate bitboard;
 // extern crate heuristic;
-extern crate pattern_engine;
-extern crate search;
+// extern crate pattern_engine;
+// extern crate search;
 extern crate mcts;
 
 #[macro_use]
@@ -36,19 +36,26 @@ use players::*;
 
 fn main() {
     
-    let mut t = match env::args().nth(1).unwrap_or_else(||{
-        cerrln!("Usage: ./coin [Black|White]");
+
+    let mut conf_path =  env::args().nth(1).unwrap_or_else(||{
+        cerrln!("Usage: ./coin conf [Black|White]");
+        process::exit(0)
+    });
+
+    let mut t = match env::args().nth(2).unwrap_or_else(||{
+        cerrln!("Usage: ./coin conf [Black|White]");
         process::exit(0)
     }).as_ref() {
         "Black" => Turn::BLACK,
         "White" => Turn::WHITE,
         _ => {
-            cerrln!("Usage: ./coin [Black|White]");
+            cerrln!("Usage: ./coin conf [Black|White]");
             process::exit(0)
         }
     };
     
-    let coincfg = player_cfg::CoinCfg::from_path(&Path::new("./coin.json"));
+    eprintln!("[COIN] Loading Config from '{}'", conf_path);
+    let coincfg = player_cfg::CoinCfg::from_path(&Path::new(&conf_path));
     
     let mut ms_left = 0;
     let mut b = Board::new();
@@ -57,10 +64,12 @@ fn main() {
         b.f_do_move(Move::pass());
     }
     
-    cerrln!("{:?}", b);
+    // cerrln!("{:?}", b);
     
     //let mut p = PonderingMctsPlayer::new(t, coincfg.model_file, coincfg.heuristic_directory);
-    let mut p = MctsPlayer::new(t, &Path::new(&coincfg.model_file), &Path::new(&coincfg.heuristic_directory), coincfg.mcts_rounds);
+    let model_path = &Path::new(&coincfg.model_file);
+    let params_path = &Path::new(&coincfg.heuristic_directory);
+    let mut p = MctsPlayer::new(t, model_path, params_path, coincfg.mcts_rounds, coincfg.solve_depth as usize);
     
     println!("Init done");
     
@@ -99,7 +108,7 @@ fn main() {
                 panic!(e)
             }
         }
-        cerrln!("\n{:?}", b);
+        cerrln!("\n{}", b);
         
         // make my move
         let m = p.do_move(b.copy(), ms_left as u64);
@@ -114,7 +123,7 @@ fn main() {
             println!("{} {}", m.x(), m.y());
         }
         
-        cerrln!("\n{:?}", b);
+        // cerrln!("\n{}", b);
     }
     
     cerrln!("RESULT: {}/{}", b.count_pieces().1, b.count_pieces().0);

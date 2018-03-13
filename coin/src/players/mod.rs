@@ -11,14 +11,14 @@ use std::path::Path;
 use std::time::Instant;
 
 mod mcts_player;
-mod pondering_mcts_players;
-mod mtdf_player;
-mod ab_player;
+// mod pondering_mcts_players;
+// mod mtdf_player;
+// mod ab_player;
 
 pub use self::mcts_player::*;
-pub use self::pondering_mcts_players::*;
-pub use self::mtdf_player::*;
-pub use self::ab_player::*;
+// pub use self::pondering_mcts_players::*;
+// pub use self::mtdf_player::*;
+// pub use self::ab_player::*;
 
 pub trait Player {
     fn do_move(&mut self, b : Board, ms_left : u64) -> Move;

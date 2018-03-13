@@ -1,6 +1,7 @@
 use std::fmt;
 use bit_ops::*;
 use std::ops::Not;
+use std::hash::*;
 
 pub const MAX_MOVES : usize = 30;
 
@@ -112,7 +113,7 @@ impl fmt::Display for Move {
         } else if self.is_null() {
             write!(f, "(NULL)")
         } else {
-            write!(f, "({}{})", NUM_TO_LET[self.x() as usize], self.y())
+            write!(f, "({}{})", NUM_TO_LET[self.x() as usize], self.y()+1)
         }
     }
 }
@@ -130,7 +131,7 @@ impl fmt::Debug for Move {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Copy, Clone, Serialize, Deserialize)]
+#[derive(Eq, Copy, Clone, Serialize, Deserialize)]
 pub struct Board {
     ///Player Stones
     ps   : u64,
@@ -157,12 +158,12 @@ impl Board {
         }
     }
 
-    pub fn from_string(data: Vec<u8>) -> Board {
+    pub fn from_string(data: &[u8]) -> Board {
         let mut m = 1;
         let mut ps = 0u64;
         let mut os = 0u64;
 
-        for c in data {
+        for &c in data {
             match c as char {
                 'B' => { ps |= m;},
                 'W' => { os |= m;},
@@ -335,6 +336,18 @@ impl Board {
         (self.pm,self.om)
     }
     
+    /// Calculates and returns the exposed pieces
+    pub fn calculate_exposed(&self) -> (u64, u64) {
+        let e = !(self.ps | self.os);
+        let bloom = (
+            nort_one(e) | sout_one(e) |
+            east_one(e) | west_one(e) |
+            noea_one(e) | sowe_one(e) |
+            nowe_one(e) | soea_one(e)
+        );
+
+        (self.ps & bloom, self.os & bloom)
+    }
     
     /// Returns the stability bit mask of the given player
     #[deprecated]
@@ -504,34 +517,61 @@ impl Board {
     }
 }
 
+impl Hash for Board {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.ps.to_le().hash(state);
+        self.os.to_be().hash(state);
+    }
+}
+
+use std::cmp;
+impl cmp::PartialEq for Board {
+    fn eq(&self, other : &Board) -> bool {
+        self.ps == other.ps && self.os == other.os
+    }
+}
+
 impl fmt::Display for Board {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut err = write!(f, "  A B C D E F G H\n");
+
+        const XY0 : usize = 145;
+        const DX : usize = 6;
+        const DY : usize = 156;
+        let mut txt_board = include_bytes!("text_board.txt").iter().cloned().collect::<Vec<_>>();
+
+        // let mut err = write!(f, "  A B C D E F G H\n");
         
         for y in 0..8 {
-            let mut t = err.and(write!(f, "{}", y+1));
-            err = t;
+            // let mut t = err.and(write!(f, "{}", y+1));
+            // err = t;
             for x in 0..8 {
                 let m = Move::new(x,y).mask();
-                let e = err.and(
-                    if self.ps & m != 0 {
-                        write!(f, " @")
-                    } else if self.os & m != 0 {
-                        write!(f, " O")
-                    } else {
-                        write!(f, "  ")
-                    }
-                );
-                err = e;
+                let xy_i = XY0 + x as usize * DX + y as usize * DY;
+                // let e = err.and(
+                if self.ps & m != 0 {
+                    txt_board[xy_i] = '@' as u8;
+                    // write!(f, " @")
+                } else if self.os & m != 0 {
+                    txt_board[xy_i] = 'O' as u8;
+                    // write!(f, " O")
+                } else {
+                    // write!(f, "  ")
+                }
+                // );
+                // err = e;
             }
             
-            t = err.and(write!(f, "\n"));
+            // t = err.and(write!(f, "\n"));
             
-            err = t;
+            // err = t;
         }
         
-        err
+        // err
+
+        let str_board = String::from_utf8_lossy(&txt_board);
+
+        write!(f, "{}", str_board)
     }
 }
 

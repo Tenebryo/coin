@@ -14,10 +14,10 @@ pub enum Algorithm {
     BNS,
 }
 
-fn mcts_rounds() -> usize{200}
+fn mcts_rounds() -> isize{-1}
 fn solve_depth() -> u8 {21}
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CoinCfg {
     // mode : Algorithm,
     pub model_file : String,
@@ -25,7 +25,7 @@ pub struct CoinCfg {
     #[serde(default = "solve_depth")]
     pub solve_depth : u8,
     #[serde(default = "mcts_rounds")]
-    pub mcts_rounds : usize,
+    pub mcts_rounds : isize,
 }
 
 impl CoinCfg {

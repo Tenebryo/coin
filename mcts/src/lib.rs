@@ -13,12 +13,15 @@ extern crate rand;
 extern crate rayon;
 
 extern crate tensorflow as tf;
+extern crate indexmap;
+
 
 extern crate bitboard;
 
 pub mod eval;
 pub mod mcts;
 pub mod game;
+mod solver;
 
 pub use eval::*;
 pub use mcts::*;

@@ -16,6 +16,7 @@ extern crate threadpool;
 extern crate scoped_threadpool;
 
 extern crate tensorflow as tf;
+extern crate indexmap;
 
 extern crate bitboard;
 
@@ -23,6 +24,7 @@ mod eval;
 mod mcts;
 mod train;
 mod game;
+mod solver;
 
 use train::*;
 

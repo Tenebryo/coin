@@ -303,6 +303,19 @@ mod tests {
         println!("PERFT 11 result: {} moves", n);
     }
 
+    #[test]
+    fn stability_bench() {
+        let now = Instant::now();
+
+        let n = explore_tree(Board::new(), 11);
+
+        let dur = now.elapsed();
+
+        let elapsed = dur.as_secs() as f64 + dur.subsec_nanos() as f64 / 1_000_000_000.0f64;
+        println!("PERFT 11 time: {} s", elapsed);
+        println!("PERFT 11 result: {} moves", n);
+    }
+
     fn bench<F>(mut sample : F, iters : usize) -> u64 where F: FnMut() {
         let now = Instant::now();
         for _ in 0..iters {

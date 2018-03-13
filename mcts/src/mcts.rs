@@ -12,6 +12,7 @@ use std::i32;
 
 use bitboard::*;
 use eval::*;
+use solver::*;
 
 const EXPLORATION_CONSTANT : f32 = 3.0;
 const FIRST_PLAY_URGENCY_CONSTANT : f32 = 0.25;
@@ -265,13 +266,12 @@ impl MctsNode {
         start       : Instant,
         ms_left     : Duration,
         timeout     : &mut bool,
-        first       : bool,
-        nodes       : &mut usize,
+        first       : bool
     ) -> (Move, i32) {
 
         match self.state {
             MctsNodeState::Invalid | MctsNodeState::Leaf => {
-                return (Move::null(), negamax_ordering(self.position.to_board(), alpha, beta, info, start, ms_left, timeout, nodes));
+                return (Move::null(), negamax_ordering(self.position.to_board(), alpha, beta, info, start, ms_left, timeout));
             },
             MctsNodeState::ProvenWin(s)  if !first => {return (Move::null(), s.signum() as i32);},
             MctsNodeState::ProvenDraw    if !first => {return (Move::null(), 0);},
@@ -304,7 +304,7 @@ impl MctsNode {
         //loop through all the moves
         for i in 0..n {
         
-            let (_, v) = self.edges[idx[i]].to.solve_endgame(-beta, -alpha, info, start, ms_left, timeout, false, nodes);
+            let (_, v) = self.edges[idx[i]].to.solve_endgame(-beta, -alpha, info, start, ms_left, timeout, false);
             let v = -v;
             
             
@@ -392,6 +392,7 @@ pub struct MctsTree<E : Evaluator> {
     root    : MctsNode,
     pub eval    : E,
     temp    : f32,
+    solver_info : MoveOrderInfo, 
 }
 
 impl<E : Evaluator> MctsTree<E> {
@@ -400,6 +401,7 @@ impl<E : Evaluator> MctsTree<E> {
             root    : MctsNode::new(&Board::new()),
             eval    : eval,
             temp    : 5.0e-2,
+            solver_info : MoveOrderInfo::new(), 
         }
     }
 
@@ -473,7 +475,8 @@ impl<E : Evaluator> MctsTree<E> {
         let mut i = 32;
 
         for j in 0..(self.root.edges.len()) {
-            if self.root.edges[j].to.position.to_board() == board {
+            let bb = self.root.edges[j].to.position.to_board();
+            if bb == board {
                 i = j;
                 break;
             }
@@ -528,13 +531,10 @@ impl<E : Evaluator> MctsTree<E> {
     }
     
     pub fn solve_endgame(&mut self, start : Instant, ms_left : Duration, timeout : &mut bool) -> (Move, i32) {
-        let mut info = MoveOrderInfo {
-            killers : [[0; 64];60],
-            history : [0; 64],
-            butterfly : [1; 64],
-            kmoves : [(0, [0;4]); 64],
-        };
         
+        self.solver_info.leaf_nodes = 0;
+        self.solver_info.ttable_hits = 0;
+
         // ensure the root node is always expanded.
         match self.root.state {
             MctsNodeState::Leaf | MctsNodeState::Invalid => {
@@ -543,208 +543,17 @@ impl<E : Evaluator> MctsTree<E> {
             _ => ()
         }
         
-        let mut nodes = 0;
+        let (bm, v) = self.root.solve_endgame(-1, 2, &mut self.solver_info, start, ms_left, timeout, true);
         
-        let (bm, v) = self.root.solve_endgame(-2, 2, &mut info, start, ms_left, timeout, true, &mut nodes);
-        
-        //eprintln!("[COIN] Nodes: {}", nodes); 
+        eprintln!("[COIN] Solver Nodes: {} TTable Hits: {}", 
+            self.solver_info.leaf_nodes, self.solver_info.ttable_hits); 
+        // if v < 0 {
+        //     (Move::null(), -1064)
+        // } else {
+        //     (bm, v)
+        // }
         (bm, v)
     }
-}
-
-struct MoveOrderInfo {
-    killers     : [[u32; 64]; 60],
-    history     : [u32; 64],
-    butterfly   : [u32; 64],
-    kmoves      : [(usize, [usize; 4]); 64],
-}
-
-fn quick_board_score(
-    b           : &Board,
-    o           : usize, 
-    e           : usize, 
-    info        : &mut MoveOrderInfo
-) -> i32 {
-    let mut score = 0;
-    const CORNERS : u64 = 0x81_00_00_00_00_00_00_81;
-
-    let om = b.mobility().0;
-    let ps = b.pieces().1;
-    score -= (om.count_ones() as i32) << 2;
-    score -= ((om & CORNERS).count_ones() as i32) << 4;
-    score += ((ps & CORNERS).count_ones() as i32) << 4;
-    score += (info.killers[e][o] as i32) << 6;
-    //score += ((info.history[o] as i32) << 7) /  info.butterfly[o] as i32;
-    //score += (info.history[o] as i32) << 4;
-    score += if info.kmoves[e].1[0] == o || info.kmoves[e].1[1] == o || info.kmoves[e].1[2] == o || info.kmoves[e].1[3] == o {1 << 4} else {0};
-    
-    score
-}
-
-fn order_moves_extras(
-    b : Board,
-    idx : &mut [usize],
-    mvs : &[Move],
-    info        : &mut MoveOrderInfo,
-    extra : &[i32; 64]
-) {
-    use std::mem;
-    const CORNERS : u64 = 0x81_00_00_00_00_00_00_81;
-    
-    let mut scores : [i32; 64] = unsafe{mem::uninitialized()};
-   
-    let empty = b.total_empty() as usize;
-    for &m in mvs {
-        let mut bc = b.copy();
-        bc.f_do_move(m);
-        
-        let o = m.offset() as usize;
-        
-        scores[o] = (extra[o] << 6) + quick_board_score(&bc, o, empty, info);
-
-    }
-    
-    idx.sort_unstable_by_key(|&i| -scores[mvs[i].offset() as usize]);
-}
-
-fn order_moves(
-    b : Board, 
-    mvs : &mut [Move], 
-    info        : &mut MoveOrderInfo
-) {
-    use std::mem;
-        
-    
-    let mut scores : [i32; 64] = unsafe{mem::uninitialized()};
-   
-    let empty = b.total_empty() as usize;
-    for &m in mvs.iter() {
-        let mut bc = b.copy();
-        bc.f_do_move(m);
-        
-        let o = m.offset() as usize;
-        
-        scores[o] = quick_board_score(&bc, o, empty, info);
-    }
-    
-    mvs.sort_unstable_by_key(|m| -scores[m.offset() as usize]);
-}
-
-//simple negamax implementation.
-fn negamax_ordering (
-    mut bb      : Board,
-    mut alpha   : i32,
-    beta        : i32,
-    info        : &mut MoveOrderInfo,
-    start       : Instant,
-    ms_left     : Duration,
-    timeout     : &mut bool,
-    nodes       : &mut usize
-) -> i32 {
-
-    if bb.is_done() {
-        *nodes += 1;
-        return (bb.piece_diff() as i32).signum();
-    }
-
-    let mut rmvs : MoveList = empty_movelist();
-
-    let empty = bb.total_empty() as usize;
-
-    let n = bb.get_moves(&mut rmvs) as usize;
-    
-    if n == 0 {
-        bb.f_do_move(Move::pass());
-        return - if empty <= 5 {
-            negamax_opt(bb, -beta, -alpha, nodes)
-        } else {
-            negamax_ordering(bb, -beta, -alpha, info, start, ms_left, timeout, nodes)
-        };
-    }
-
-    order_moves(bb, &mut rmvs[0..n], info);
-
-    //negamax step
-    let mut g = i32::MIN;
-
-    //loop through all the moves
-    for i in 0..n {
-        let mut bc = bb.copy();
-        let m = rmvs[i as usize];
-        bc.f_do_move(m);
-
-        //recurse, updating alpha and beta appropriately.
-        let v = - if empty <= 5 {
-            negamax_opt(bc, -beta, -alpha, nodes)
-        } else {
-            negamax_ordering(bc, -beta, -alpha, info, start, ms_left, timeout, nodes)
-        };
-        
-        if *timeout || start.elapsed() >= ms_left {
-            *timeout = true;
-            return 1064;
-        }
-        
-        //update best move
-        if g < v { g = v; }
-
-        if alpha < g { alpha = g; }
-
-        let o = m.offset() as usize;
-        info.butterfly[o] += 1;
-        if alpha >= beta { 
-            info.killers[empty][o] += 1;
-            info.history[o] += 1;
-            info.kmoves[empty].1[info.kmoves[o].0] = o;
-            info.kmoves[empty].0 = (info.kmoves[empty].0 + 1) & 0b11;
-            break; 
-        }
-    }
-
-    g
-}
-
-
-//simple negamax implementation.
-fn negamax_opt (
-    mut bb      : Board,
-    mut alpha   : i32,
-    beta        : i32,
-    nodes       : &mut usize
-) -> i32 {
-
-    if bb.is_done() {
-        *nodes += 1;
-        return (bb.piece_diff() as i32).signum();
-    }
-    
-    //eprintln!("{:?} {:?}", bb.pieces(), bb.mobility());
-
-    let mut rmvs : MoveList = empty_movelist();
-
-    let n = bb.get_moves(&mut rmvs);
-
-    //negamax step
-    let mut g = i32::MIN;
-
-    //loop through all the moves
-    for i in 0..n {
-        let mut bc = bb.copy();
-        let m = rmvs[i as usize];
-        bc.f_do_move(m);
-
-        //recurse, updating alpha and beta appropriately.
-        let v = -negamax_opt(bc, -beta, -alpha, nodes);
-
-        //update best move
-        if g < v { g = v; }
-
-        if alpha < g { alpha = g; }
-
-        if alpha >= beta { break; }
-    }
-
-    g
 }
 
 /// The MctsTree is an Evaluator itself (since it is an improvement operator on
@@ -798,6 +607,15 @@ impl<E : Evaluator> Evaluator for MctsTree<E> {
             let mut ntsum = 0.0;
             let mut wsum = 0.0;
             for e in &self.root.edges {
+                match e.state() {
+                    MctsNodeState::ProvenWin(s) => {
+                        // if the best state is a proven win, then this node is a proven loss for the current player
+                        res64.0[e.action.offset() as usize] = 0.0;
+                        //don't go down this path
+                        continue;
+                    },
+                    _ => ()
+                }
                 let tmp = (e.sims as f64).powf(1.0/self.temp as f64);
                 nsum += e.sims;
                 ntsum += tmp;
@@ -869,9 +687,9 @@ fn solve_endgame_test() {
     let mut mvs = empty_movelist();
     let mut r = rand::thread_rng();
     
-    for d in 10..24 {
+    for d in 10..30 {
         let mut b = Board::new();
-        while b.total_empty() >= d {
+        while b.total_empty() > d {
             if b.is_done() {
                 b = Board::new();
             }
@@ -884,9 +702,38 @@ fn solve_endgame_test() {
         }
         
         evals.prune_board(b);
-        evals.single_round();
         let start = Instant::now();
-        let score = evals.solve_endgame(start, Duration::from_millis(20_000), &mut false);
-        eprintln!("Depth: {:2} Score: {} Move: {} Elapsed: {:?}", d, score.1, score.0, start.elapsed());
+        evals.single_round();
+        // evals.n_rounds(400);
+        let score = evals.solve_endgame(start, Duration::from_millis(30_000), &mut false);
+        eprintln!("Empty: {:2} Score: {} Move: {} Elapsed: {:?}", d, score.1, score.0, start.elapsed());
     }
+}
+
+#[test]
+fn ffo_test() {
+
+    let mut cnet = CoinNet::new(&Path::new("../params/CoinNet_model.pb")).unwrap();
+    cnet.load(&Path::new("../params/CoinNet-170")).unwrap();
+    let mut evals = MctsTree::new(cnet);
+
+    let ffo_positions = [
+        Board::from_string(b"________\nW_W_____\n_WWWWBBB\nBBWBWW__\nBBBWWWW_\nBBWWWW__\nB_BBBW__\n___BB___")
+    ];
+
+    let start = Instant::now();
+
+    for b in ffo_positions.iter() {
+
+        let mut to = false;
+        println!("Board: \n{}", b);
+        evals.prune_board(*b);
+        evals.n_rounds(3000);
+        println!("Solving...");
+        let score = evals.solve_endgame(start, Duration::from_secs(100_000_000), &mut to);
+        println!("Result: {} {}", score.0, score.1);
+        assert!(!to);
+    }
+
+    println!("Final Time: {:?}", start.elapsed());
 }

@@ -21,6 +21,7 @@ serde_json = "1.0"
 bincode = "0.9.2"
 threadpool= "1.7"
 scoped_threadpool = "0.1"
+indexmap = "0.4"
 
 [dependencies.tensorflow]
 git = "https://github.com/tensorflow/rust.git"
