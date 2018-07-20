@@ -193,11 +193,23 @@ impl MctsNode {
 
         let mut edge_list = String::new();
         writeln!(w, "\"{}\" -> \"{}\" [label=\"[V={}]\", loop left];", name, name ,self.value)?;
+        match self.state {
+            MctsNodeState::ProvenLoss(s) => {
+                writeln!(w, "\"{}\" -> \"{}\" [label=\"[L: {}]\", loop right];", name, name , s)?;
+            },
+            MctsNodeState::ProvenDraw => {
+                writeln!(w, "\"{}\" -> \"{}\" [label=\"[D]\", loop right];", name, name)?;
+            },
+            MctsNodeState::ProvenWin(s) => {
+                writeln!(w, "\"{}\" -> \"{}\" [label=\"[W: {}]\", loop right];", name, name , s)?;
+            },
+            _ => ()
+        }
 
         let ntot : usize = self.edges.iter().map(|e| e.sims).sum();
 
         for (i, e) in self.edges.iter().enumerate() {
-            let next_name = format!("{}-{}", name, i);
+            let next_name = format!("{}-{}", name, e.action);
             writeln!(w, "\"{}\" -> \"{}\" [label=\"[M={},P={},N={},QU={}]\"];", name, next_name,e.action,e.prior,e.sims,e.qu((ntot as f32).sqrt()))?;
             edge_list = format!("{} \"{}\"", edge_list, next_name);
             e.to.render(w, next_name)?;
@@ -650,18 +662,22 @@ impl<E : Evaluator> Evaluator for MctsTree<E> {
         self.eval.load(filename)
     }
 }
-/*
+
 #[test]
 fn visualize_mcts_tree() {
 
-    let mut cnet = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
-    cnet.load(&Path::new("./data/iter001/CoinNet-checkpoint.best")).unwrap();
+    let mut cnet = CoinNet::new(&Path::new("../params/CoinNet_model.pb")).unwrap();
+    cnet.load(&Path::new("../params/CoinNet-170")).unwrap();
 
     let mut evals = MctsTree::new(cnet);
 
-    let dir = Path::new("./data/graphviz/");
+    let dir = Path::new("./data/graphviz2/");
 
     fs::create_dir_all(&dir);
+
+    let b = Board::from_string(b"________\n________\n_W_WWWW_\n__WBBW__\n_WWWWW__\n_WWWWW__\n__W__W__\n________");
+
+    evals.prune_board(b);
 
     for i in 0..100 {
         eprintln!("Step {:3}", i);
@@ -672,7 +688,7 @@ fn visualize_mcts_tree() {
         evals.render_tree(&mut f).unwrap();
     }
 }
-*/
+
 #[test]
 fn solve_endgame_test() {
     use rand;
@@ -718,6 +734,8 @@ fn ffo_test() {
     let mut evals = MctsTree::new(cnet);
 
     let ffo_positions = [
+        Board::from_string(b"________\n________\n_W_WWWW_\n__WBBW__\n_WWWWW__\n_WWWWW__\n__W__W__\n________"),
+        Board::from_string(b"___W____\n___W____\n_W_WWWW_\n__WWBW__\n_WWWWW__\n_WWWWW__\n__W__W__\n________"),
         Board::from_string(b"________\nW_W_____\n_WWWWBBB\nBBWBWW__\nBBBWWWW_\nBBWWWW__\nB_BBBW__\n___BB___")
     ];
 
@@ -727,6 +745,7 @@ fn ffo_test() {
 
         let mut to = false;
         println!("Board: \n{}", b);
+        println!("Board: \n{:?}", b);
         evals.prune_board(*b);
         evals.n_rounds(3000);
         println!("Solving...");
