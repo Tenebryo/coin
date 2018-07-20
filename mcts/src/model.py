@@ -86,7 +86,8 @@ with tf.name_scope('CoinNet') as scope:
     hidden_size = 128
     prior_size = 64
 
-    conv_filters = [64,64,128,128]
+    conv_filters = [64,64,64,128,128]
+    conv_kernels = [5,5,5,3,3]
 
     #   The input to the neural network
     real_net_input = tf.placeholder(tf.float32, [None, real_input_size], name='input')
@@ -96,7 +97,7 @@ with tf.name_scope('CoinNet') as scope:
     conv = tf.layers.conv2d(
       inputs=net_input,
       filters=64,
-      kernel_size=[3, 3],
+      kernel_size=[5, 5],
       padding="same",
       activation=tf.nn.relu,
       name="conv0")
@@ -105,12 +106,14 @@ with tf.name_scope('CoinNet') as scope:
         inputs = conv,
         name = "conv_bn0")
 
-    for i,cs in enumerate(conv_filters[1:]):
+    for i,(cs,ks) in enumerate(zip(conv_filters, conv_kernels)):
+        if i == 0:
+            continue
 
         conv = tf.layers.conv2d(
           inputs=conv,
           filters=cs,
-          kernel_size=[3, 3],
+          kernel_size=[ks, ks],
           padding="same",
           activation=tf.nn.relu,
           name="conv{}".format(i+1))
