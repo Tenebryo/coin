@@ -38,7 +38,7 @@ use game::*;
 // const GAME_BATCHES_PER_ROUND : usize = 5;
 // const SELF_PLAY_VARIANCE_TURNS : usize = 15;
 
-const EVAL_ROUNDS : usize = 100;
+const EVAL_ROUNDS : usize = 400;
 const EVAL_GAMES : usize = TF_EVAL_BATCH_SIZE;
 const EVAL_CUTOFF : usize = TF_EVAL_BATCH_SIZE * 70 / 128;
 const EVAL_RANDOM : usize = TF_EVAL_BATCH_SIZE;
@@ -84,7 +84,14 @@ impl MctsTrainer {
                 self.eval_player(i);
             }
         }
+        
+        let elapsed = start.elapsed();
+        println!("[COIN]         Time elapsed: {:5}.{:09}", elapsed.as_secs(), elapsed.subsec_nanos());
 
+    }
+
+    fn play_random(&mut self) {
+        let start = Instant::now();
         let mut tpool = Pool::new(TF_EVAL_BATCH_SIZE as u32 + 1);
 
         let rwins = Arc::new(AtomicUsize::new(0));
@@ -713,6 +720,7 @@ impl MctsTrainer {
 
         println!("[COIN]   Evaluating Players...");
         self.evaluate_players();
+        // self.play_random();
     }
 }
 
