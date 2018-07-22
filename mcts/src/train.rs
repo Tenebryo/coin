@@ -42,10 +42,10 @@ const EVAL_ROUNDS : usize = 400;
 const EVAL_GAMES : usize = TF_EVAL_BATCH_SIZE;
 const EVAL_CUTOFF : usize = TF_EVAL_BATCH_SIZE * 70 / 128;
 const EVAL_RANDOM : usize = TF_EVAL_BATCH_SIZE;
-const TRAINING_ITERATIONS : usize = 512;
-const TRAINING_BATCH_SIZE : usize = 256;
-const GAME_HISTORY_LENGTH : usize = 24_000;
-const GAME_BATCHES_PER_ROUND : usize = 4;
+const TRAINING_ITERATIONS : usize = 1024;
+const TRAINING_BATCH_SIZE : usize = 1024;
+const GAME_HISTORY_LENGTH : usize = 50_000;
+const GAME_BATCHES_PER_ROUND : usize = 16;
 const SELF_PLAY_VARIANCE_TURNS : usize = 15;
 
 pub struct MctsTrainer {
@@ -475,11 +475,11 @@ impl MctsTrainer {
 
         let _test : Vec<Game> = bincode::deserialize(&data[..]).unwrap();
 
-        let path_str = format!("./data/iter{:03}/new_games.dat", iter);
-        let path = Path::new(&path_str);
+        let path_str = format!("iter{:03}/new_games.dat", iter);
+        let path = self.data_folder.join(Path::new(&path_str));
 
-        let sample_path_str = format!("./data/iter{:03}/new_games.json", iter);
-        let sample_path = Path::new(&sample_path_str);
+        let sample_path_str = format!("iter{:03}/new_games.json", iter);
+        let sample_path = self.data_folder.join(Path::new(&sample_path_str));
 
         fs::create_dir_all(path.parent().unwrap()).unwrap();
 
@@ -724,7 +724,7 @@ impl MctsTrainer {
 
         println!("[COIN]   Evaluating Players...");
         self.evaluate_players();
-        // self.play_random();
+        self.play_random();
     }
 }
 
@@ -742,20 +742,20 @@ mod tests {
     #[test]
     fn correctness_test() {
         
-        use std::path::Path;
+        // use std::path::Path;
 
-        let mut trainer = MctsTrainer::new(6, &Path::new("./data/CoinNet_model.pb"), None);
+        // let mut trainer = MctsTrainer::new(6, &Path::new("./data/CoinNet_model.pb"), None);
 
-        let n = trainer.load_files(&Path::new("./data")).unwrap();
+        // let n = trainer.load_files(&Path::new("./data")).unwrap();
 
-        let g = &trainer.recent_games[trainer.last_game];
+        // let g = &trainer.recent_games[trainer.last_game];
 
-        eprintln!("{} {}", g.moves.len(), g.states.len());
+        // eprintln!("{} {}", g.moves.len(), g.states.len());
 
-        for &(b,EvalOutput(_,v)) in g.states.iter() {
-            eprintln!("Board: (Result: {})\n{}", v, b);
-        }
+        // for &(b,EvalOutput(_,v)) in g.states.iter() {
+        //     eprintln!("Board: (Result: {})\n{}", v, b);
+        // }
 
-        eprintln!("Done testing");
+        // eprintln!("Done testing");
     }
 }
