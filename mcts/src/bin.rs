@@ -70,9 +70,9 @@ fn run() -> Result<(), Box<Error>> {
     let data_folder = Path::new(matches.value_of("data").unwrap());
     let model_file = Path::new(matches.value_of("model").unwrap());
 
-    let mut trainer = MctsTrainer::new(3, &data_folder, &data_folder.join(model_file), None);
+    let mut trainer = MctsTrainer::new(3, &data_folder.clone(), &data_folder.join(model_file), None);
 
-    let n = trainer.load_files(&data_folder)?;
+    let n = trainer.load_files()?;
 
     eprintln!("[COIN] Seeding players with logistello opening book...");
 

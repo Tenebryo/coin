@@ -48,16 +48,16 @@ const GAME_HISTORY_LENGTH : usize = 50_000;
 const GAME_BATCHES_PER_ROUND : usize = 16;
 const SELF_PLAY_VARIANCE_TURNS : usize = 15;
 
-pub struct MctsTrainer {
+pub struct MctsTrainer<'a> {
     best         : usize,
     players      : Vec<(Arc<ParallelCoinNetWorker>, MctsTree<ParallelCoinNet>)>,
     recent_games : Vec<Game>,
     last_game    : usize,
-    data_folder  : Box<Path>,
+    data_folder  : &'a Path,
 }
 
-impl MctsTrainer {
-    pub fn new(n : usize, data_folder : &Path, model : &Path, vars : Option<&Path>) -> MctsTrainer {
+impl<'a> MctsTrainer<'a> {
+    pub fn new(n : usize, data_folder : &'a Path, model : &Path, vars : Option<&Path>) -> MctsTrainer<'a> {
         let players = (0..n).map(|_| {
 
             let (evals, worker) = ParallelCoinNet::new_worker_group(model, vars).unwrap();
@@ -72,7 +72,7 @@ impl MctsTrainer {
             players,
             recent_games    : vec![],
             last_game       : 0,
-            data_folder     : Box::new(data_folder.clone()),
+            data_folder     : data_folder,
         }
     }
 
@@ -574,7 +574,7 @@ impl MctsTrainer {
     fn save_players(&mut self, iter : usize) {
         let dir_path = format!("iter{:03}/",iter);
         let dir = self.data_folder.join(Path::new(&dir_path));
-        fs::create_dir_all(dir).unwrap();
+        fs::create_dir_all(dir.clone()).unwrap();
         let can_dir = &fs::canonicalize(dir).unwrap_or_else(|_| panic!(line!()));
         for i in 0..(self.players.len()) {
             let err = if i == self.best {
