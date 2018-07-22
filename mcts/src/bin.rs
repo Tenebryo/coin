@@ -8,6 +8,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 extern crate bincode;
+extern crate clap;
 
 extern crate rand;
 extern crate rayon;
@@ -31,6 +32,8 @@ use train::*;
 use std::error::Error;
 use std::result::Result;
 
+use clap::{App, Arg, SubCommand};
+
 fn main() {
     std::process::exit(match run(){
         Ok(_) => {0},
@@ -45,9 +48,31 @@ fn main() {
 fn run() -> Result<(), Box<Error>> {
     use std::path::Path;
 
-    let mut trainer = MctsTrainer::new(3, &Path::new("./data/CoinNet_model.pb"), None);
+    let matches = App::new("mcts_train")
+        .version("0.2")
+        .about("Automated reinforcement learning for the COIN Othello bot.")
+        .author("Sam Blazes")
+        .arg(Arg::with_name("data")
+            .short("d")
+            .long("data")
+            .value_name("FOLDER")
+            .help("Set the folder to use for data.")
+            .required(true))
+        .arg(Arg::with_name("model")
+            .short("m")
+            .long("model")
+            .value_name("MODEL")
+            .required(true)
+            .help("Set the model file to use, relative to the data folder"))
+        .get_matches();
 
-    let n = trainer.load_files(&Path::new("./data"))?;
+    //unwrap is safe because the arguments are required.
+    let data_folder = Path::new(matches.value_of("data").unwrap());
+    let model_file = Path::new(matches.value_of("model").unwrap());
+
+    let mut trainer = MctsTrainer::new(3, &data_folder, &data_folder.join(model_file), None);
+
+    let n = trainer.load_files(&data_folder)?;
 
     eprintln!("[COIN] Seeding players with logistello opening book...");
 

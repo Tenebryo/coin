@@ -53,10 +53,11 @@ pub struct MctsTrainer {
     players      : Vec<(Arc<ParallelCoinNetWorker>, MctsTree<ParallelCoinNet>)>,
     recent_games : Vec<Game>,
     last_game    : usize,
+    data_folder  : Box<Path>,
 }
 
 impl MctsTrainer {
-    pub fn new(n : usize, model : &Path, vars : Option<&Path>) -> MctsTrainer {
+    pub fn new(n : usize, data_folder : &Path, model : &Path, vars : Option<&Path>) -> MctsTrainer {
         let players = (0..n).map(|_| {
 
             let (evals, worker) = ParallelCoinNet::new_worker_group(model, vars).unwrap();
@@ -71,6 +72,7 @@ impl MctsTrainer {
             players,
             recent_games    : vec![],
             last_game       : 0,
+            data_folder     : Box::new(data_folder.clone()),
         }
     }
 
@@ -84,7 +86,7 @@ impl MctsTrainer {
                 self.eval_player(i);
             }
         }
-        
+
         let elapsed = start.elapsed();
         println!("[COIN]         Time elapsed: {:5}.{:09}", elapsed.as_secs(), elapsed.subsec_nanos());
 
@@ -570,8 +572,8 @@ impl MctsTrainer {
 
     /// Save all the players to a directory
     fn save_players(&mut self, iter : usize) {
-        let dir_path = format!("./data/iter{:03}/",iter);
-        let dir = Path::new(&dir_path);
+        let dir_path = format!("iter{:03}/",iter);
+        let dir = self.data_folder.join(Path::new(&dir_path));
         fs::create_dir_all(dir).unwrap();
         let can_dir = &fs::canonicalize(dir).unwrap_or_else(|_| panic!(line!()));
         for i in 0..(self.players.len()) {
@@ -590,7 +592,9 @@ impl MctsTrainer {
         }
     }
 
-    pub fn load_files(&mut self, dir : &Path) -> Result<usize,Box<Error>> {
+    pub fn load_files(&mut self) -> Result<usize,Box<Error>> {
+
+        let dir = self.data_folder;
         use std::cmp::max;
         let mut p_iter_dirs = vec![];
         for dir in fs::read_dir(dir)? {
