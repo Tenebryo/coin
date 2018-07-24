@@ -14,7 +14,11 @@ use bitboard::*;
 use eval::*;
 use solver::*;
 
-const EXPLORATION_CONSTANT : f32 = 3.0;
+use rand;
+use rand::distributions::Sample;
+use rand::distributions::gamma::Gamma;
+
+const EXPLORATION_CONSTANT : f32 = 2.0;
 const FIRST_PLAY_URGENCY_CONSTANT : f32 = 0.25;
 
 #[derive(PartialEq, PartialOrd, Copy, Clone, Debug)]
@@ -384,7 +388,7 @@ impl MctsEdge {
 
     /// Computes the upper confidence bound for this edge.
     fn u(&self, n : f32) -> f32 {
-        self.prior * n / (self.sims as f32 + 1.0)
+        self.prior /* * n */ / (self.sims as f32 + 1.0)
     }
 
     /// Computes the tree exploration factor of the edges.
@@ -404,7 +408,8 @@ pub struct MctsTree<E : Evaluator> {
     root    : MctsNode,
     pub eval    : E,
     temp    : f32,
-    solver_info : MoveOrderInfo, 
+    solver_info : MoveOrderInfo,
+    variation : bool,
 }
 
 impl<E : Evaluator> MctsTree<E> {
@@ -413,7 +418,8 @@ impl<E : Evaluator> MctsTree<E> {
             root    : MctsNode::new(&Board::new()),
             eval    : eval,
             temp    : 5.0e-2,
-            solver_info : MoveOrderInfo::new(), 
+            solver_info : MoveOrderInfo::new(),
+            variation : false,
         }
     }
 
@@ -516,8 +522,20 @@ impl<E : Evaluator> MctsTree<E> {
         self.temp = temp;
     }
 
-    pub fn add_dirichlet_noise(&mut self) {
+    pub fn set_variation(&mut self, ena : bool) {
+        self.variation = ena;
+    }
 
+    pub fn apply_dirichlet_noise(&mut self, theta : f64) {
+        self.single_round();
+
+        let n = self.root.edges.len();
+
+        let d_noise = dirichlet_dist(theta, n);
+        for i in 0..n {
+            self.root.edges[i].prior *= 0.75;
+            self.root.edges[i].prior += (0.25 * d_noise[i]) as f32;
+        }
     }
     
     pub fn count_sims(&self) -> usize {
@@ -566,6 +584,17 @@ impl<E : Evaluator> MctsTree<E> {
         // }
         (bm, v)
     }
+}
+
+fn dirichlet_dist(theta : f64, n : usize) -> Vec<f64> {
+    let mut g_dist = Gamma::new(theta, 1.0);
+    let mut rng = rand::thread_rng();
+
+    let mut data = (0..n).map(|_| g_dist.sample(&mut rng)).collect::<Vec<_>>();
+    let sum = data.iter().sum::<f64>();
+    
+    // normalize distribution
+    data.iter().map(|x| x / sum).collect::<Vec<_>>()
 }
 
 /// The MctsTree is an Evaluator itself (since it is an improvement operator on
@@ -638,6 +667,13 @@ impl<E : Evaluator> Evaluator for MctsTree<E> {
 
             for i in 0..64 {
                 res.0[i] = (res64.0[i] / ntsum) as f32;
+            }
+
+            if self.variation {
+                let dchlet_noise = dirichlet_dist(0.03, 64);
+                for i in 0..64 {
+                    res.0[i] = (0.75 * res.0[i]) + (0.25 * dchlet_noise[i]) as f32;
+                }
             }
 
             res.1 = wsum / (nsum as f32);
