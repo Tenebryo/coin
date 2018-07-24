@@ -203,6 +203,16 @@ impl Board {
         }
     }
 
+    pub fn permute(&mut self, perm : usize) {
+        let s_syms = all_board_syms(self.ps, self.os);
+        let m_syms = all_board_syms(self.pm, self.om);
+
+        self.ps = s_syms[perm].0;
+        self.os = s_syms[perm].1;
+        self.pm = m_syms[perm].0;
+        self.om = m_syms[perm].1;
+    }
+
     /// Gets the current turn
     pub fn get_turn(&self) -> Turn {
         self.ct
