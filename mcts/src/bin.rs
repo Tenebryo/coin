@@ -70,7 +70,7 @@ fn run() -> Result<(), Box<Error>> {
     let data_folder = Path::new(matches.value_of("data").unwrap());
     let model_file = Path::new(matches.value_of("model").unwrap());
 
-    let mut trainer = MctsTrainer::new(3, &data_folder.clone(), &data_folder.join(model_file), None);
+    let mut trainer = MctsTrainer::new(10, &data_folder.clone(), &data_folder.join(model_file), None);
 
     let n = trainer.load_files()?;
 
@@ -82,8 +82,8 @@ fn run() -> Result<(), Box<Error>> {
     loop {
         println!("[COIN] Starting training iteration {}", i);
         let eta = match i {
-              0 ... 400 => 0.01,
-            400 ... 600 => 0.005,
+              0 ...  50 => 0.01,
+             50 ... 100 => 0.005,
             _           => 0.0025,
         };
         trainer.iteration(i, eta);
