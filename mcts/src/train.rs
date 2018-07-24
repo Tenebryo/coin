@@ -22,6 +22,7 @@ use serde_json;
 
 use threadpool::*;
 use scoped_threadpool::Pool;
+use rayon::prelude::*;
 
 use bitboard::*;
 use eval::*;
@@ -42,11 +43,11 @@ const EVAL_ROUNDS : usize = 400;
 const EVAL_GAMES : usize = TF_EVAL_BATCH_SIZE;
 const EVAL_CUTOFF : usize = TF_EVAL_BATCH_SIZE * 70 / 128;
 const EVAL_RANDOM : usize = TF_EVAL_BATCH_SIZE;
-const TRAINING_ITERATIONS : usize = 1024;
+const TRAINING_ITERATIONS : usize = 512;
 const TRAINING_BATCH_SIZE : usize = 1024;
-const GAME_HISTORY_LENGTH : usize = 50_000;
+const GAME_HISTORY_LENGTH : usize = 65_536;
 const GAME_BATCHES_PER_ROUND : usize = 16;
-const SELF_PLAY_VARIANCE_TURNS : usize = 15;
+const SELF_PLAY_VARIANCE_TURNS : usize = 10;
 
 pub struct MctsTrainer<'a> {
     best         : usize,
@@ -262,7 +263,9 @@ impl<'a> MctsTrainer<'a> {
 
                 let sum : f32 = (0..(n as usize)).map(|i| val.0[moves[i].offset() as usize]).sum();
 
-                assert!(sum >= 0.0);
+                if (sum < 0.0) {
+                    eprintln!("[COIN]       Probable Overflow {}", line!());
+                }
 
                 let rmove = rng.gen_range(0.0, sum);
 
@@ -326,7 +329,9 @@ impl<'a> MctsTrainer<'a> {
 
                     let sum : f32 = (0..(n as usize)).map(|i| val.0[moves[i].offset() as usize]).sum();
 
-                    assert!(sum >= 0.0);
+                    if (sum < 0.0) {
+                        eprintln!("[COIN]       Probable Overflow {}", line!());
+                    }
 
                     let rmove = rng.gen_range(0.0, sum);
 
@@ -377,6 +382,7 @@ impl<'a> MctsTrainer<'a> {
             let mut input = vec![];
             let mut output = vec![];
 
+            // seems like a bottleneck (probably premuting)
             while input.len() < TRAINING_BATCH_SIZE {
                 let selected_game = rng.choose(&self.recent_games).unwrap();
                 let selected = rng.choose(&selected_game.states);
@@ -385,15 +391,36 @@ impl<'a> MctsTrainer<'a> {
                     Some(s) => {
                         /*  make sure we don't care about passes... */
                         if s.0.mobility().0 != 0 {
-                            input.push(s.0);
-                            let mut out = s.1.clone();
-                            out.1 = out.1.signum();
-                            output.push(out);
+                            let perm = rng.gen::<usize>() % 8;
+
+                            let mut t_in = s.0.clone();
+                            // t_in.permute(perm);
+                            
+                            let mut t_out = s.1.clone();
+                            t_out.1 = t_out.1.signum();
+                            // t_out.permute(perm);
+
+                            input.push(t_in);
+                            output.push(t_out);
                         }
                     },
                     None => {}
                 }
             }
+
+            let perms = (0..TRAINING_BATCH_SIZE)
+                .map(|_| rng.gen::<usize>() % 8)
+                .collect::<Vec<_>>();
+
+            let input = input.par_iter()
+                .enumerate()
+                .map(|(i, &t_in)| {t_in.permute(perms[i]); t_in})
+                .collect::<Vec<_>>();
+
+            let output = output.par_iter()
+                .enumerate()
+                .map(|(i, &t_out)| {t_out.permute(perms[i]); t_out})
+                .collect::<Vec<_>>();
 
             /*  train on the mini-batch: */
             let err = self.players[idx].0.train(&input, &output, eta);
@@ -525,12 +552,18 @@ impl<'a> MctsTrainer<'a> {
             let mut val = EvalOutput::new();
 
             if n != 0 {
+                if (turns < SELF_PLAY_VARIANCE_TURNS) {
+                    p1.apply_dirichlet_noise(0.03);
+                }
+
                 p1.n_rounds(EVAL_ROUNDS);
                 val = p1.evaluate(&b);
 
                 let sum : f32 = (0..(n as usize)).map(|i| val.0[moves[i].offset() as usize]).sum();
 
-                assert!(sum >= 0.0);
+                if (sum < 0.0) {
+                    eprintln!("[COIN]       Probable Overflow {}", line!());
+                }
 
                 let rmove = rng.gen_range(0.0, sum);
 
@@ -719,12 +752,12 @@ impl<'a> MctsTrainer<'a> {
         println!("[COIN]   Training Players...");
         self.training_round(eta);
 
-        println!("[COIN]   Saving Player Checkpoints...");
-        self.save_players(iter);
-
         println!("[COIN]   Evaluating Players...");
         self.evaluate_players();
         self.play_random();
+
+        println!("[COIN]   Saving Player Checkpoints...");
+        self.save_players(iter);
     }
 }
 
