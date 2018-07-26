@@ -75,6 +75,8 @@ impl Player for MctsPlayer {
         eprintln!("[COIN] Saved {} Nodes.", pruned);
 
         let mut timeout = false;
+
+        let mut research = false;
         
         let mut out_move = Move::null();
         
@@ -88,7 +90,11 @@ impl Player for MctsPlayer {
             if timeout {
                 eprintln!("[COIN] Timeout on endgame solver, researching with MCTS.");
                 start = Instant::now();
-            } else {
+            } else if s == -1 {
+                eprintln!("[COIN] No win or draw, researching with MCTS.");
+                start = Instant::now();
+                research = true;
+            }else {
                 out_move = m;
                 eprintln!("[COIN] Solved game! Result: {} {}", s, m);
             }
@@ -96,7 +102,7 @@ impl Player for MctsPlayer {
         
         let alloc_time = (ms_left as f32 * TIME_ALLOC[total as usize]) as u64;
 
-        if timeout || empty >= self.solve_depth {
+        if timeout || research || empty >= self.solve_depth {
             eprintln!("[COIN] Searching... ({} rounds)", self.rounds);
             let expansions = if self.rounds > 0 {
                 self.mcts_m.n_rounds(self.rounds as usize);
