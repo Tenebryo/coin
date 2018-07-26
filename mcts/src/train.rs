@@ -87,7 +87,7 @@ impl<'a> MctsTrainer<'a> {
 
         rand::thread_rng().shuffle(&mut order);
 
-        for i in order {
+        for &i in &order[0..3] {
             if i != self.best {
                 self.eval_player(i);
             }
@@ -269,8 +269,8 @@ impl<'a> MctsTrainer<'a> {
                 let mut sum : f32 = (0..(n as usize))
                     .map(|i| val.0[moves[i].offset() as usize]).sum();
 
-                if (sum < 0.0) {
-                    eprintln!("[COIN]       Probable Overflow {}", line!());
+                if (sum <= 0.0) {
+                    eprintln!("[COIN]       Wipeout");
                     sum = 1.0;
                 }
 
@@ -337,8 +337,8 @@ impl<'a> MctsTrainer<'a> {
                     let mut sum : f32 = (0..(n as usize))
                         .map(|i| val.0[moves[i].offset() as usize]).sum();
 
-                    if (sum < 0.0) {
-                        eprintln!("[COIN]       Probable Overflow {}", line!());
+                    if (sum <= 0.0) {
+                        eprintln!("[COIN]       Wipeout");
                         sum = 1.0;
                     }
 
@@ -577,9 +577,9 @@ impl<'a> MctsTrainer<'a> {
             let mut val = EvalOutput::new();
 
             if n != 0 {
-                // if (turns < SELF_PLAY_VARIANCE_TURNS) {
-                //     p1.apply_dirichlet_noise(0.03);
-                // }
+                if (turns < SELF_PLAY_VARIANCE_TURNS) {
+                    p1.apply_dirichlet_noise(0.03);
+                }
 
                 p1.n_rounds(EVAL_ROUNDS);
                 val = p1.evaluate(&b);
@@ -587,8 +587,8 @@ impl<'a> MctsTrainer<'a> {
                 let mut sum : f32 = (0..(n as usize))
                     .map(|i| val.0[moves[i].offset() as usize]).sum();
 
-                if (sum < 0.0) {
-                    eprintln!("[COIN]       Probable Overflow {}", line!());
+                if (sum <= 0.0) {
+                    eprintln!("[COIN]       Wipeout");
                     sum = 1.0;
                 }
 
