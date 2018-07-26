@@ -15,8 +15,7 @@ use eval::*;
 use solver::*;
 
 use rand;
-use rand::distributions::Sample;
-use rand::distributions::gamma::Gamma;
+use rand::distributions::{Distribution, Gamma};
 
 const EXPLORATION_CONSTANT : f32 = 2.0;
 const FIRST_PLAY_URGENCY_CONSTANT : f32 = 0.25;
