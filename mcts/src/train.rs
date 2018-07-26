@@ -45,8 +45,9 @@ const EVAL_CUTOFF : usize = TF_EVAL_BATCH_SIZE * 70 / 128;
 const EVAL_RANDOM : usize = TF_EVAL_BATCH_SIZE;
 const TRAINING_ITERATIONS : usize = 512;
 const TRAINING_BATCH_SIZE : usize = 1024;
-const GAME_HISTORY_LENGTH : usize = 65_536;
-const GAME_BATCHES_PER_ROUND : usize = 16;
+const GAME_HISTORY_LENGTH : usize = 1024 * 16;
+const GAME_BATCHES_PER_ROUND : usize = 2;
+const SELF_PLAY_GAMES : usize = 1024;
 const SELF_PLAY_VARIANCE_TURNS : usize = 10;
 
 pub struct MctsTrainer<'a> {
@@ -82,7 +83,11 @@ impl<'a> MctsTrainer<'a> {
     fn evaluate_players(&mut self) {
         let start = Instant::now();
 
-        for i in 0..(self.players.len()) {
+        let mut order = (0..(self.players.len())).collect::<Vec<_>>();
+
+        rand::thread_rng().shuffle(&mut order);
+
+        for i in order {
             if i != self.best {
                 self.eval_player(i);
             }
@@ -261,10 +266,12 @@ impl<'a> MctsTrainer<'a> {
                 };
 
 
-                let sum : f32 = (0..(n as usize)).map(|i| val.0[moves[i].offset() as usize]).sum();
+                let mut sum : f32 = (0..(n as usize))
+                    .map(|i| val.0[moves[i].offset() as usize]).sum();
 
                 if (sum < 0.0) {
                     eprintln!("[COIN]       Probable Overflow {}", line!());
+                    sum = 1.0;
                 }
 
                 let rmove = rng.gen_range(0.0, sum);
@@ -327,10 +334,12 @@ impl<'a> MctsTrainer<'a> {
                     p1.n_rounds(EVAL_ROUNDS);
                     let val = p1.evaluate(&b);
 
-                    let sum : f32 = (0..(n as usize)).map(|i| val.0[moves[i].offset() as usize]).sum();
+                    let mut sum : f32 = (0..(n as usize))
+                        .map(|i| val.0[moves[i].offset() as usize]).sum();
 
                     if (sum < 0.0) {
                         eprintln!("[COIN]       Probable Overflow {}", line!());
+                        sum = 1.0;
                     }
 
                     let rmove = rng.gen_range(0.0, sum);
@@ -414,12 +423,20 @@ impl<'a> MctsTrainer<'a> {
 
             let input = input.par_iter()
                 .enumerate()
-                .map(|(i, &t_in)| {t_in.permute(perms[i]); t_in})
+                .map(|(i, t_in)| {
+                    let mut t_in = t_in.clone();
+                    t_in.permute(perms[i]); 
+                    t_in
+                })
                 .collect::<Vec<_>>();
 
             let output = output.par_iter()
                 .enumerate()
-                .map(|(i, &t_out)| {t_out.permute(perms[i]); t_out})
+                .map(|(i, t_out)| {
+                    let mut t_out = t_out.clone();
+                    t_out.permute(perms[i]); 
+                    t_out
+                })
                 .collect::<Vec<_>>();
 
             /*  train on the mini-batch: */
@@ -441,20 +458,21 @@ impl<'a> MctsTrainer<'a> {
 
         let p = self.best;
 
-        let mut tpool = Pool::new(TF_EVAL_BATCH_SIZE as u32);
+        let mut tpool = Pool::new(SELF_PLAY_GAMES as u32);
 
         for r in 0..GAME_BATCHES_PER_ROUND {
 
             let start = Instant::now();
 
-            println!("\r[COIN]     Generating Self-Play Games... (R{})", r);
+            // println!("\r[COIN]     Generating Self-Play Games... (R{})", r);
+            println!("\r[COIN]     Generating Self-Play Games...");
             let running = Arc::new(AtomicUsize::new(0));
             
             tpool.scoped(|tpool| {
 
                 let (ref worker, ref eval) = self.players[p];
 
-                for _i in 0..TF_EVAL_BATCH_SIZE {
+                for _i in 0..SELF_PLAY_GAMES {
                     // let new_games = new_games.clone();
                     let running = running.clone();
                     let p1 = eval.clone();
@@ -474,12 +492,19 @@ impl<'a> MctsTrainer<'a> {
                 }
 
                 let mut p1_steps = 0;
+                let old_size = worker.get_batch_size();
+                worker.set_batch_size(SELF_PLAY_GAMES);
                 while running.load(Ordering::SeqCst) != 0 {
                     p1_steps += worker.do_a_work();
-                    print!("\r[COIN]         Total Evals: [{:8}] ({:4.1}%)", 
-                        p1_steps, p1_steps as f32 / (0.6 * (TF_EVAL_BATCH_SIZE * EVAL_ROUNDS) as f32));
+                    let elapsed = start.elapsed();
+                    print!("\r[COIN]         Total Evals: [{:8}] ({:4.1}%; {:5}.{:09})", 
+                        p1_steps, 
+                        p1_steps as f32 / (0.6 * (SELF_PLAY_GAMES * EVAL_ROUNDS) as f32),
+                        elapsed.as_secs(), elapsed.subsec_nanos()
+                    );
                     stdout().flush().unwrap();
                 }
+                worker.set_batch_size(old_size);
                 println!("");
             });
             // tpool.join();
@@ -488,7 +513,7 @@ impl<'a> MctsTrainer<'a> {
             println!("\r[COIN]       Time elapsed: {:5}.{:09}", elapsed.as_secs(), elapsed.subsec_nanos());
         }
 
-        let mut new_games = Vec::with_capacity(TF_EVAL_BATCH_SIZE * GAME_BATCHES_PER_ROUND);
+        let mut new_games = Vec::with_capacity(SELF_PLAY_GAMES);
         loop {
             if let Ok(e) = ng_rx.try_recv() {
                 new_games.push(e);
@@ -552,17 +577,19 @@ impl<'a> MctsTrainer<'a> {
             let mut val = EvalOutput::new();
 
             if n != 0 {
-                if (turns < SELF_PLAY_VARIANCE_TURNS) {
-                    p1.apply_dirichlet_noise(0.03);
-                }
+                // if (turns < SELF_PLAY_VARIANCE_TURNS) {
+                //     p1.apply_dirichlet_noise(0.03);
+                // }
 
                 p1.n_rounds(EVAL_ROUNDS);
                 val = p1.evaluate(&b);
 
-                let sum : f32 = (0..(n as usize)).map(|i| val.0[moves[i].offset() as usize]).sum();
+                let mut sum : f32 = (0..(n as usize))
+                    .map(|i| val.0[moves[i].offset() as usize]).sum();
 
                 if (sum < 0.0) {
                     eprintln!("[COIN]       Probable Overflow {}", line!());
+                    sum = 1.0;
                 }
 
                 let rmove = rng.gen_range(0.0, sum);
@@ -790,5 +817,74 @@ mod tests {
         // }
 
         // eprintln!("Done testing");
+    }
+
+    #[test]
+    fn test_rotations() {
+        for g in 0..1000 {
+            // eprintln!("TEST GAME {}", g);
+            let mut b = Board::new();
+
+            for i in 0..10 {
+                let mut mvs = empty_movelist();
+                let n = b.get_moves(&mut mvs) as usize;
+
+                let mut mv = Move::pass();
+
+                if n != 0 {
+                    mv = *rand::thread_rng().choose(&mvs[0..n]).unwrap();
+                }
+
+                b.do_move(mv);
+
+                // eprint!("{} ", i);
+            }
+            // eprintln!("");
+
+            let mut mvs = empty_movelist();
+            let n = b.get_moves(&mut mvs) as usize;
+
+            if mvs[0].is_pass() {
+                continue;
+            }
+
+            let mut mv_list = EvalOutput([0.0; 64], 0.0);
+            for m in 0..n {
+                mv_list.0[mvs[m].offset() as usize] = 1.0;
+            }
+
+            for p in 0..8 {
+                // eprintln!("  PERM: {}", p);
+                let mut bb = b.clone();
+                let mut mm = mv_list.clone();
+                bb.permute(p);
+                mm.permute(p);
+
+                if g == 0 {
+                    eprintln!("{:?}", bb);
+
+                    for y in 0..8 {
+                        for x in 0..8 {
+                            eprint!("{}", if mm.0[x + 8*y] == 1.0 {"#"} else {" "});
+                        }
+                        eprintln!("");
+                    }
+                }
+
+                let mut mmm = empty_movelist();
+                let nn = bb.get_moves(&mut mmm) as usize;
+
+                // make sure the number of moves doesn't change
+                assert!(nn == n);
+
+                for m in 0..nn {
+                    //ensure all the moves are in the correct place.
+                    assert!(mm.0[mmm[m].offset() as usize] == 1.0);
+                }
+
+                //ensure no extra 1s are added
+                assert!(mm.0.iter().sum::<f32>() as usize == nn);
+            }
+        }
     }
 }
