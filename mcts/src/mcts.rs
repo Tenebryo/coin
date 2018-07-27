@@ -261,7 +261,11 @@ impl MctsNode {
             }
         }
 
-        assert!(max_edge != n);
+        if max_edge == n {
+            // this means it is solved
+            eprintln!("[COIN] Solved Line.");
+            return;
+        }
 
         /*  increment the number of simulations of this edge. */
         mvs.push(self.edges[max_edge].action);

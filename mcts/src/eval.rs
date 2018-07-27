@@ -405,7 +405,7 @@ pub const TF_EVAL_BATCH_SIZE : usize = 256;
 
 /// The max amount of time before starting a batch that is smaller than the 
 /// max size.
-pub const TF_EVAL_BATCH_TIMEOUT : u32 = 50_000;
+pub const TF_EVAL_BATCH_TIMEOUT : u32 = 25_000;
 
 /// A worker that processes batches of inputs through tensorflow
 pub struct ParallelCoinNetWorker {
