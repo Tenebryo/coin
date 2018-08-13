@@ -1,4 +1,5 @@
 use rand::{self, Rng};
+use rand::distributions::{Weighted, WeightedChoice, Distribution};
 use std::path::Path;
 use std::io;
 use std::io::prelude::*;
@@ -39,15 +40,15 @@ use game::*;
 // const GAME_BATCHES_PER_ROUND : usize = 5;
 // const SELF_PLAY_VARIANCE_TURNS : usize = 15;
 
-const EVAL_ROUNDS : usize = 400;
+const EVAL_ROUNDS : usize = 800;
 const EVAL_GAMES : usize = TF_EVAL_BATCH_SIZE;
 const EVAL_CUTOFF : usize = TF_EVAL_BATCH_SIZE * 70 / 128;
 const EVAL_RANDOM : usize = TF_EVAL_BATCH_SIZE;
 const TRAINING_ITERATIONS : usize = 512;
 const TRAINING_BATCH_SIZE : usize = 1024;
-const GAME_HISTORY_LENGTH : usize = 1024 * 16;
-const GAME_BATCHES_PER_ROUND : usize = 2;
-const SELF_PLAY_GAMES : usize = 1024;
+const GAME_HISTORY_LENGTH : usize = 1024 * 24;
+const GAME_BATCHES_PER_ROUND : usize = 4;
+const SELF_PLAY_GAMES : usize = 512;
 const SELF_PLAY_VARIANCE_TURNS : usize = 10;
 
 pub struct MctsTrainer<'a> {
@@ -87,7 +88,7 @@ impl<'a> MctsTrainer<'a> {
 
         rand::thread_rng().shuffle(&mut order);
 
-        for &i in &order[0..3] {
+        for &i in &order[0..5] {
             if i != self.best {
                 self.eval_player(i);
             }
@@ -252,11 +253,11 @@ impl<'a> MctsTrainer<'a> {
         while !b.is_done() {
 
             let mut moves = empty_movelist();
-            let n = b.get_moves(&mut moves);
+            let n = b.get_moves(&mut moves) as usize;
 
             let mut selected_move = Move::pass();
 
-            if n != 0 {
+            if !moves[0].is_pass() {
                 let val = if turn > 0.0 {
                     p1.n_rounds(EVAL_ROUNDS);
                     p1.evaluate(&b)
@@ -266,26 +267,11 @@ impl<'a> MctsTrainer<'a> {
                 };
 
 
-                let mut sum : f32 = (0..(n as usize))
-                    .map(|i| val.0[moves[i].offset() as usize]).sum();
+                let mi = weighted_choice(
+                    &((0..n).map(|i| val.0[moves[i].offset() as usize]).collect::<Vec<_>>()),
+                    &((0..n).map(|n| n).collect::<Vec<_>>())
+                );
 
-                if (sum <= 0.0) {
-                    eprintln!("[COIN]       Wipeout");
-                    sum = 1.0;
-                }
-
-                let rmove = rng.gen_range(0.0, sum);
-
-                let mut mi = 0;
-                let mut sm = 0.0;
-
-                for i in 0..(n as usize) {
-                    sm += val.0[moves[i].offset() as usize];
-                    if rmove <= sm {
-                        mi = i;
-                        break;
-                    }
-                }
 
                 selected_move = moves[mi];
             }
@@ -320,11 +306,11 @@ impl<'a> MctsTrainer<'a> {
         /*  Simulate the game. */
         while !b.is_done() {
             let mut moves = empty_movelist();
-            let n = b.get_moves(&mut moves);
+            let n = b.get_moves(&mut moves) as usize;
 
             let mut selected_move = Move::pass();
 
-            if n != 0 {
+            if !moves[0].is_pass() {
                 if turn > 0.0 {
                     selected_move = match rng.choose(&moves[..(n as usize)]) {
                         Some(&m) => m,
@@ -334,26 +320,12 @@ impl<'a> MctsTrainer<'a> {
                     p1.n_rounds(EVAL_ROUNDS);
                     let val = p1.evaluate(&b);
 
-                    let mut sum : f32 = (0..(n as usize))
-                        .map(|i| val.0[moves[i].offset() as usize]).sum();
 
-                    if (sum <= 0.0) {
-                        eprintln!("[COIN]       Wipeout");
-                        sum = 1.0;
-                    }
+                    let mi = weighted_choice(
+                        &((0..n).map(|i| val.0[moves[i].offset() as usize]).collect::<Vec<_>>()),
+                        &((0..n).map(|n| n).collect::<Vec<_>>())
+                    );
 
-                    let rmove = rng.gen_range(0.0, sum);
-
-                    let mut mi = 0;
-                    let mut sm = 0.0;
-
-                    for i in 0..(n as usize) {
-                        sm += val.0[moves[i].offset() as usize];
-                        if rmove <= sm {
-                            mi = i;
-                            break;
-                        }
-                    }
 
                     selected_move = moves[mi];
                 }
@@ -571,12 +543,12 @@ impl<'a> MctsTrainer<'a> {
         /*  Simulate the game. */
         while !b.is_done() {
             let mut moves = empty_movelist();
-            let n = b.get_moves(&mut moves);
+            let n = b.get_moves(&mut moves) as usize;
 
             let mut selected_move = Move::pass();
             let mut val = EvalOutput::new();
 
-            if n != 0 {
+            if !moves[0].is_pass() {
                 if (turns < SELF_PLAY_VARIANCE_TURNS) {
                     p1.apply_dirichlet_noise(0.03);
                 }
@@ -584,31 +556,33 @@ impl<'a> MctsTrainer<'a> {
                 p1.n_rounds(EVAL_ROUNDS);
                 val = p1.evaluate(&b);
 
-                let mut sum : f32 = (0..(n as usize))
-                    .map(|i| val.0[moves[i].offset() as usize]).sum();
 
-                if (sum <= 0.0) {
-                    eprintln!("[COIN]       Wipeout");
-                    sum = 1.0;
-                }
+                let mi = if turns < SELF_PLAY_VARIANCE_TURNS {
+                    weighted_choice(
+                        &((0..n).map(|i| val.0[moves[i].offset() as usize]).collect::<Vec<_>>()),
+                        &((0..n).map(|n| n).collect::<Vec<_>>())
+                    )
+                } else {
+                    let mut m_idx = 0;
+                    let mut m_val = val.0[moves[0].offset() as usize];
 
-                let rmove = rng.gen_range(0.0, sum);
-
-                let mut mi = 0;
-                let mut sm = 0.0;
-
-                for i in 0..(n as usize) {
-                    sm += val.0[moves[i].offset() as usize];
-                    if rmove <= sm {
-                        mi = i;
-                        break;
+                    for i in 1..n {
+                        let tmp = val.0[moves[i].offset() as usize];
+                        if m_val < tmp {
+                            m_idx = i;
+                            m_val = tmp;
+                        }
                     }
-                }
+
+                    m_idx as usize
+                };
+
 
                 selected_move = moves[mi];
             }
 
-            g.add_position(b.clone(), val);
+            // for now, don't use 1 hot encoding
+            g.add_position(b.clone(), val, true);
             g.add_move(selected_move);
 
             /*  Apply the move to the board and player. */
@@ -788,6 +762,28 @@ impl<'a> MctsTrainer<'a> {
     }
 }
 
+fn weighted_choice(w : &[f32], v : &[usize]) -> usize {
+    assert!(w.len() == v.len());
+
+    let sum = w.iter().sum::<f32>();
+    let mut rng = rand::thread_rng();
+
+    use std::f32;
+    if sum <= f32::MIN_POSITIVE {
+        return rng.gen::<usize>() % (w.len());
+    }
+
+    let r = sum * rng.gen_range(0.0, 1.0);
+
+    let mut tmp_sum = w[0];
+    let mut i = 0;
+    while tmp_sum < r && i+1 < w.len() {
+        i += 1;
+        tmp_sum += w[i];
+    }
+
+    i
+}
 
 #[cfg(test)]
 mod tests {

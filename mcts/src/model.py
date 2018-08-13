@@ -8,8 +8,8 @@ with tf.name_scope('CoinNet') as scope:
     hidden_size = 128
     prior_size = 64
 
-    conv_filters = [64,64,64,64,128,128]
-    conv_kernels = [5,5,3,3,3,3]
+    conv_filters = [128,64,64,128]
+    conv_kernels = [5,5,3,3]
 
     #   The input to the neural network
     real_net_input = tf.placeholder(tf.float32, [None, real_input_size], name='input')
@@ -40,12 +40,16 @@ with tf.name_scope('CoinNet') as scope:
           activation=tf.nn.relu,
           name="conv{}".format(i+1))
 
-        conv = tf.layers.dropout(
-            inputs = tf.layers.batch_normalization(
+        # conv = tf.layers.dropout(
+        #     inputs = tf.layers.batch_normalization(
+        #         inputs = conv,
+        #         name = "conv_bn{}".format(i+1)),
+        #     rate = 0.25,
+        #     name = "conv_dropout{}".format(i+1))
+
+        conv = tf.layers.batch_normalization(
                 inputs = conv,
-                name = "conv_bn{}".format(i+1)),
-            rate = 0.25,
-            name = "conv_dropout{}".format(i+1))
+                name = "conv_bn{}".format(i+1))
 
     flat_conv = tf.reshape(conv, [-1, input_size * input_size * conv_filters[-1]])
 

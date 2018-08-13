@@ -17,7 +17,7 @@ use solver::*;
 use rand;
 use rand::distributions::{Distribution, Gamma};
 
-const EXPLORATION_CONSTANT : f32 = 2.0;
+const EXPLORATION_CONSTANT : f32 = 0.25;
 const FIRST_PLAY_URGENCY_CONSTANT : f32 = 0.25;
 
 #[derive(PartialEq, PartialOrd, Copy, Clone, Debug)]
@@ -391,7 +391,7 @@ impl MctsEdge {
 
     /// Computes the upper confidence bound for this edge.
     fn u(&self, n : f32) -> f32 {
-        self.prior /* * n */ / (self.sims as f32 + 1.0)
+        self.prior * n / (self.sims as f32 + 1.0)
     }
 
     /// Computes the tree exploration factor of the edges.

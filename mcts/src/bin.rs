@@ -70,7 +70,7 @@ fn run() -> Result<(), Box<Error>> {
     let data_folder = Path::new(matches.value_of("data").unwrap());
     let model_file = Path::new(matches.value_of("model").unwrap());
 
-    let mut trainer = MctsTrainer::new(10, &data_folder.clone(), &data_folder.join(model_file), None);
+    let mut trainer = MctsTrainer::new(8, &data_folder.clone(), &data_folder.join(model_file), None);
 
     let n = trainer.load_files()?;
 

@@ -61,7 +61,7 @@ impl Game {
 
             let mut prior = [0.0;64];
             prior[m.offset() as usize] = 1.0;
-            g.add_position(b, EvalOutput(prior, 0.0));
+            g.add_position(b, EvalOutput(prior, 0.0), true);
             g.add_move(m);
 
             b.f_do_move(m);
@@ -76,24 +76,26 @@ impl Game {
         Ok(g)
     }
 
-    pub fn add_position(&mut self, input : EvalInput, mut output : EvalOutput) {
+    pub fn add_position(&mut self, input : EvalInput, mut output : EvalOutput, one_hot : bool) {
 
         //convert to 1 hot encoding:
-        let mut mmax = output.0[0];
-        let mut imax = 0;
-        for i in 1..(output.0.len()) {
-            if mmax < output.0[i] {
-                mmax = output.0[i];
-                imax = i;
+        if one_hot {
+            let mut mmax = output.0[0];
+            let mut imax = 0;
+            for i in 1..(output.0.len()) {
+                if mmax < output.0[i] {
+                    mmax = output.0[i];
+                    imax = i;
+                }
             }
-        }
 
-        for i in 0..(output.0.len()) {
-            output.0[i] = if i == imax {
-                1.0
-            } else {
-                0.0
-            };
+            for i in 0..(output.0.len()) {
+                output.0[i] = if i == imax {
+                    1.0
+                } else {
+                    0.0
+                };
+            }
         }
 
         self.states.push((input, output));
