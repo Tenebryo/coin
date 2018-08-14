@@ -70,7 +70,12 @@ with tf.name_scope('CoinNet') as scope:
         units = prior_size,
         name = 'logits_p')
 
-    output_p = tf.nn.softmax(logits_p, name = 'output_p')
+    # the softmax is masked by the valid mobility of the current player so that
+    # invalid moves don't affect the softmax and thus don't learn something
+    # they shouldn't. This is the policy output of the network
+    output_p = tf.nn.softmax(
+        logits_p * tf.reshape(net_input[:,:,:,2], [-1,input_size * input_size]), 
+        name = 'output_p')
 
     hidden_v = tf.layers.dense(
         inputs=hidden_layer,
@@ -82,6 +87,7 @@ with tf.name_scope('CoinNet') as scope:
         inputs = hidden_v,
         units = 1)
 
+    # This is the value output of the network
     output_v = tf.nn.tanh(linear_v, name = 'output_v')
 
     #   These are the supervized learning targets to train towards
