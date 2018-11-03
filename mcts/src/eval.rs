@@ -410,6 +410,7 @@ pub const TF_EVAL_BATCH_TIMEOUT : u32 = 25_000;
 /// A worker that processes batches of inputs through tensorflow
 pub struct ParallelCoinNetWorker {
     pub batch_size : AtomicUsize,
+    pub timeout : AtomicUsize,
     net : Mutex<CoinNet>,
     work_rx : Receiver<(EvalInput, Sender<EvalOutput>)>,
     work_tx : Sender<(EvalInput, Sender<EvalOutput>)>
@@ -427,8 +428,13 @@ impl ParallelCoinNetWorker {
 
         Ok(ParallelCoinNetWorker{
             batch_size : AtomicUsize::new(TF_EVAL_BATCH_SIZE),
+            timeout : AtomicUsize::new(TF_EVAL_BATCH_TIMEOUT as usize),
             net, work_tx, work_rx
         })
+    }
+
+    pub fn set_timeout(&self, timeout: u32) {
+        self.timeout.store(timeout as usize, Ordering::SeqCst);
     }
 
     pub fn get_batch_size(&self) -> usize {
@@ -445,7 +451,7 @@ impl ParallelCoinNetWorker {
         let mut txs = vec![];
 
         for _ in 0..self.get_batch_size() {
-            if let Ok((input, tx)) = self.work_rx.recv_timeout(Duration::new(0,TF_EVAL_BATCH_TIMEOUT)) {
+            if let Ok((input, tx)) = self.work_rx.recv_timeout(Duration::new(0,self.timeout.load(Ordering::SeqCst) as u32)) {
                 inputs.push(input);
                 txs.push(tx);
             } else {
