@@ -36,7 +36,7 @@ use game::*;
 // const EVAL_RANDOM : usize = 4;
 // const TRAINING_ITERATIONS : usize = 128;
 // const TRAINING_BATCH_SIZE : usize = 128;
-// const GAME_HISTORY_LENGTH : usize = 10_000;
+// const GAME_HISTORY_LENGTH_MIN : usize = 10_000;
 // const GAME_BATCHES_PER_ROUND : usize = 5;
 // const SELF_PLAY_VARIANCE_TURNS : usize = 15;
 
@@ -46,7 +46,8 @@ const EVAL_CUTOFF : usize = TF_EVAL_BATCH_SIZE * 70 / 128;
 const EVAL_RANDOM : usize = TF_EVAL_BATCH_SIZE;
 const TRAINING_ITERATIONS : usize = 512;
 const TRAINING_BATCH_SIZE : usize = 1024;
-const GAME_HISTORY_LENGTH : usize = 1024 * 24;
+const GAME_HISTORY_LENGTH_MIN : usize = 1024 * 24;
+const GAME_HISTORY_LENGTH_MAX : usize = 1024 * 96;
 const GAME_BATCHES_PER_ROUND : usize = 4;
 const SELF_PLAY_GAMES : usize = 512;
 const SELF_PLAY_VARIANCE_TURNS : usize = 10;
@@ -516,13 +517,13 @@ impl<'a> MctsTrainer<'a> {
         let n = new_games.len();
 
         for (i,e) in new_games.into_iter().enumerate() {
-            if self.recent_games.len() < GAME_HISTORY_LENGTH {
+            if self.recent_games.len() < GAME_HISTORY_LENGTH_MIN {
                 self.recent_games.push(e);
             } else {
-                self.recent_games[(self.last_game+i) % GAME_HISTORY_LENGTH] = e;
+                self.recent_games[(self.last_game+i) % GAME_HISTORY_LENGTH_MIN] = e;
             }
         }
-        self.last_game = (self.last_game + n) % GAME_HISTORY_LENGTH;
+        self.last_game = (self.last_game + n) % GAME_HISTORY_LENGTH_MIN;
 
         println!("\r[COIN]     Added {} new games.", n);
     }
@@ -661,8 +662,8 @@ impl<'a> MctsTrainer<'a> {
 
         let n = new_games.len();
 
-        if n > GAME_HISTORY_LENGTH {
-            let mut tmp = new_games[(n-GAME_HISTORY_LENGTH)..].iter()
+        if n > GAME_HISTORY_LENGTH_MIN {
+            let mut tmp = new_games[(n-GAME_HISTORY_LENGTH_MIN)..].iter()
                 .cloned().collect::<Vec<_>>();
             self.recent_games.append(&mut tmp);
         } else {
@@ -739,7 +740,7 @@ impl<'a> MctsTrainer<'a> {
         let n = self.recent_games.len();
 
         self.recent_games.append(&mut games);
-        self.recent_games.truncate(GAME_HISTORY_LENGTH);
+        self.recent_games.truncate(GAME_HISTORY_LENGTH_MIN);
         self.last_game = n;
 
         Ok(())
