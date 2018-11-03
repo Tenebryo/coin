@@ -15,16 +15,19 @@ extern crate rayon;
 extern crate tensorflow as tf;
 extern crate indexmap;
 
+extern crate parking_lot;
 
 extern crate bitboard;
 
 pub mod eval;
 pub mod mcts;
+pub mod pmcts;
 pub mod game;
 mod solver;
 
 pub use eval::*;
 pub use mcts::*;
+pub use pmcts::*;
 pub use game::*;
 
 #[cfg(test)]
