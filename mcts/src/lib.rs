@@ -16,6 +16,7 @@ extern crate tensorflow as tf;
 extern crate indexmap;
 
 extern crate parking_lot;
+extern crate scoped_threadpool;
 
 extern crate bitboard;
 
@@ -23,35 +24,40 @@ pub mod eval;
 pub mod mcts;
 pub mod pmcts;
 pub mod game;
+pub mod coinnet;
+pub mod pcoinnet;
 mod solver;
 
 pub use eval::*;
 pub use mcts::*;
 pub use pmcts::*;
 pub use game::*;
+pub use coinnet::*;
+pub use pcoinnet::*;
 
 #[cfg(test)]
 mod tests {
 
     use rand::{self, Rng};
-    use std::time::{Instant, Duration};
+    use std::time::{Instant};
     use std::path::Path;
+    use coinnet::*;
 
     use bitboard::{Board, Turn};
-    use eval;
+    
     use eval::Evaluator;
 
     #[test]
     fn restore_test() {
 
-        let mut net = eval::CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
+        let mut net = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
         net.load(&Path::new("./data/iter000/CoinNet-checkpoint.best.index")).unwrap();
     }
 
     #[test]
     fn tensorflow_throughput_test() {
-        let mut net = eval::CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
+        let mut net = CoinNet::new(&Path::new("./data/CoinNet_model.pb")).unwrap();
 
         // net.load(Path::new("./data/iter014/CoinNet-checkpoint.best.index")).unwrap();
 

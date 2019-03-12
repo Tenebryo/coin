@@ -707,14 +707,17 @@ fn visualize_mcts_tree() {
 
     let mut cnet = CoinNet::new(&Path::new("../params/CoinNet_model.pb")).unwrap();
     cnet.load(&Path::new("../params/CoinNet-170")).unwrap();
+    // let mut cnet = CoinNet::new(&Path::new("./data/v6/CoinNet_model.pb")).unwrap();
+    // cnet.load(&Path::new("./data/v6/iter018/CoinNet-checkpoint.best")).unwrap();
 
     let mut evals = MctsTree::new(cnet);
 
-    let dir = Path::new("./data/graphviz2/");
+    let dir = Path::new("./data/graphviz4/");
 
     fs::create_dir_all(&dir);
 
-    let b = Board::from_string(b"________\n________\n_W_WWWW_\n__WBBW__\n_WWWWW__\n_WWWWW__\n__W__W__\n________");
+    // let b = Board::from_string(b"________\n________\n_W_WWWW_\n__WBBW__\n_WWWWW__\n_WWWWW__\n__W__W__\n________");
+    let b = Board::new();
 
     evals.prune_board(b);
 

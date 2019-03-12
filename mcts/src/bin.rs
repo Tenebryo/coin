@@ -16,6 +16,8 @@ extern crate rayon;
 extern crate threadpool;
 extern crate scoped_threadpool;
 
+extern crate parking_lot;
+
 extern crate tensorflow as tf;
 extern crate indexmap;
 
@@ -26,13 +28,15 @@ mod mcts;
 mod train;
 mod game;
 mod solver;
+mod coinnet;
+mod pcoinnet;
 
 use train::*;
 
 use std::error::Error;
 use std::result::Result;
 
-use clap::{App, Arg, SubCommand};
+use clap::{App, Arg};
 
 fn main() {
     std::process::exit(match run(){

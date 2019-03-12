@@ -29,6 +29,8 @@ use bitboard::*;
 use eval::*;
 use mcts::*;
 use game::*;
+use coinnet::*;
+use pcoinnet::*;
 
 // const EVAL_ROUNDS : usize = 100;
 // const EVAL_GAMES : usize = 4;
@@ -54,7 +56,7 @@ const SELF_PLAY_VARIANCE_TURNS : usize = 10;
 
 pub struct MctsTrainer<'a> {
     best         : usize,
-    players      : Vec<(Arc<ParallelCoinNetWorker>, MctsTree<ParallelCoinNet>)>,
+    players      : Vec<(ParallelCoinNetWorker, MctsTree<ParallelCoinNet>)>,
     recent_games : Vec<Game>,
     last_game    : usize,
     data_folder  : &'a Path,
@@ -110,7 +112,7 @@ impl<'a> MctsTrainer<'a> {
         println!("\r[COIN]     Playing Random Games...");
         tpool.scoped(|tpool| {
 
-            let (ref worker, ref evals) = self.players[self.best];
+            let (ref mut worker, ref evals) = self.players[self.best];
 
             let mut par = true;
             for _i in 0..TF_EVAL_BATCH_SIZE {
@@ -134,7 +136,7 @@ impl<'a> MctsTrainer<'a> {
 
             let mut p1_steps = 0;
             while running.load(Ordering::SeqCst) != 0 {
-                p1_steps += worker.do_a_work();
+                p1_steps += worker.do_a_work(TF_EVAL_BATCH_SIZE, Duration::from_millis(1));
                 print!("\r[COIN]         Total Evals: [{:8}] ({:4.1}%)", 
                     p1_steps, p1_steps as f32 / (0.3 * (TF_EVAL_BATCH_SIZE * EVAL_ROUNDS) as f32));
                 stdout().flush().unwrap();
@@ -164,8 +166,8 @@ impl<'a> MctsTrainer<'a> {
 
         tpool.scoped(|tpool| {
 
-            let (ref worker1, ref eval1) = self.players[self.best];
-            let (ref worker2, ref eval2) = self.players[idx];
+            // let (ref mut worker1, ref eval1) = self.players[self.best];
+            // let (ref mut worker2, ref eval2) = self.players[idx];
             
             let mut par = true;
             for _i in 0..TF_EVAL_BATCH_SIZE {
@@ -174,7 +176,10 @@ impl<'a> MctsTrainer<'a> {
                 running.fetch_add(1, Ordering::SeqCst);
                 //schedule a game on the threadpool. # of games >>> # of threads,
                 //since the bottleneck is the TF evaluations
-                let (p1, p2) = (eval1.clone(), eval2.clone());
+                let (p1, p2) = (
+                    self.players[self.best].1.clone(), 
+                    self.players[idx].1.clone()
+                );
 
                 if par {
                     tpool.execute(move || {
@@ -211,8 +216,8 @@ impl<'a> MctsTrainer<'a> {
             let mut p1_steps = 0;
             let mut p2_steps = 0;
             while running.load(Ordering::SeqCst) != 0 {
-                p1_steps += worker1.do_a_work();
-                p2_steps += worker2.do_a_work();
+                p1_steps += self.players[self.best].0.do_a_work(TF_EVAL_BATCH_SIZE, Duration::from_millis(1000));
+                p2_steps += self.players[idx].0.do_a_work(TF_EVAL_BATCH_SIZE, Duration::from_millis(1000));
                 print!("\r[COIN]         Total Evals: [P1,P2] = [{:8}, {:8}] ({:4.1}%)", 
                     p1_steps, p2_steps, (p1_steps + p2_steps) as f32 / (0.6 * (TF_EVAL_BATCH_SIZE * EVAL_ROUNDS) as f32));
                 stdout().flush().unwrap();
@@ -443,7 +448,7 @@ impl<'a> MctsTrainer<'a> {
             
             tpool.scoped(|tpool| {
 
-                let (ref worker, ref eval) = self.players[p];
+                let (ref mut worker, ref eval) = self.players[p];
 
                 for _i in 0..SELF_PLAY_GAMES {
                     // let new_games = new_games.clone();
@@ -465,10 +470,8 @@ impl<'a> MctsTrainer<'a> {
                 }
 
                 let mut p1_steps = 0;
-                let old_size = worker.get_batch_size();
-                worker.set_batch_size(SELF_PLAY_GAMES);
                 while running.load(Ordering::SeqCst) != 0 {
-                    p1_steps += worker.do_a_work();
+                    p1_steps += worker.do_a_work(SELF_PLAY_GAMES, Duration::from_millis(1000));
                     let elapsed = start.elapsed();
                     print!("\r[COIN]         Total Evals: [{:8}] ({:4.1}%; {:5}.{:09})", 
                         p1_steps, 
@@ -477,7 +480,6 @@ impl<'a> MctsTrainer<'a> {
                     );
                     stdout().flush().unwrap();
                 }
-                worker.set_batch_size(old_size);
                 println!("");
             });
             // tpool.join();
