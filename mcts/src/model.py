@@ -30,6 +30,7 @@ with tf.name_scope('CoinNet') as scope:
 
     prev_layer = conv
 
+    # construct the convolutional tower with skip connections
     for i,(cs,ks) in enumerate(zip(conv_filters, conv_kernels)):
         if i == 0:
             continue
@@ -46,12 +47,17 @@ with tf.name_scope('CoinNet') as scope:
                 inputs = conv,
                 name = "conv_bn{}".format(i+1)) + prev_layer
 
-    average_pooling_size = 8
+    average_pooling_size = 4
 
     # ensure that the average pooling size divides the
     assert(conv_filters[-1] % average_pooling_size == 0)
 
-    conv = tf.layers.average_pooling3d(conv, pool_size = (1,1,average_pooling_size))
+    conv = tf.layers.average_pooling3d(
+        tf.reshape(conv, [-1, input_size, input_size, conv_filters[-1], 1]),
+        pool_size = (1,1,average_pooling_size), 
+        strides = (1,1,average_pooling_size),
+        name = 'avg_pooling'
+    )
 
     flat_conv = tf.reshape(conv, [-1, input_size * input_size * conv_filters[-1] / average_pooling_size])
 
@@ -102,13 +108,16 @@ with tf.name_scope('CoinNet') as scope:
     # Weight the training by the whether the moves are actually important
     n_shift = 1000
     weights = (real_net_input[:,128:] + (1.0/(n_shift-1)))*((n_shift-1)/n_shift)
+
     #   This is the regularized loss function
     # prior_loss = tf.reduce_mean(-tf.matmul(net_target_p, tf.log(output_p), transpose_a = True))
     prior_loss = tf.reduce_mean(tf.losses.softmax_cross_entropy(onehot_labels=net_target_p, logits=logits_p))
+
     # prior_loss = tf.reduce_mean(tf.losses.sigmoid_cross_entropy(net_target_p, logits_p, weights=weights))
     value_loss = tf.reduce_mean(tf.squared_difference(net_target_z, output_v))
     reg_loss = tf.contrib.layers.apply_regularization(tf.contrib.layers.l2_regularizer(scale=l2), tf.trainable_variables())
 
+    # combined loss function
     loss = tf.add(prior_loss + value_loss, reg_loss, name="loss")
 
     #   This is the L2 regularization parameter
